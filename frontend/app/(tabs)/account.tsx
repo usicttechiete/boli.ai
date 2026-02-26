@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
     Alert,
@@ -72,7 +73,7 @@ function StatPill({ icon, label, value, color }: {
 }) {
     return (
         <View style={[spStyles.pill, { backgroundColor: color + '14', borderColor: color + '30' }]}>
-            <Ionicons name={icon} size={16} color={color} />
+            <Ionicons name={icon} size={18} color={color} />
             <Text style={[spStyles.value, { color }]}>{value}</Text>
             <Text style={spStyles.label}>{label}</Text>
         </View>
@@ -80,11 +81,12 @@ function StatPill({ icon, label, value, color }: {
 }
 const spStyles = StyleSheet.create({
     pill: {
-        flex: 1, borderRadius: 14, padding: 12,
-        alignItems: 'center', gap: 4,
-        borderWidth: 1,
+        flex: 1, borderRadius: 16, padding: 14,
+        alignItems: 'center', gap: 6,
+        borderWidth: 1.5,
+        boxShadow: '0 2px 8px rgba(28,18,24,0.04)',
     },
-    value: { fontSize: 17, fontWeight: '800' },
+    value: { fontSize: 19, fontWeight: '800', letterSpacing: -0.5 },
     label: { fontSize: 11, color: MID, fontWeight: '600', textAlign: 'center' },
 });
 
@@ -238,47 +240,40 @@ export default function AccountScreen() {
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={[
                     styles.scroll,
-                    { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
+                    { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 32 },
                 ]}
             >
-                {/* ── Page title ── */}
-                <Animated.View entering={FadeInDown.delay(80).duration(500)} style={styles.titleRow}>
-                    <Text style={styles.pageTitle}>Account</Text>
+                {/* ── Profile header ── */}
+                <Animated.View entering={FadeInDown.delay(100).duration(600)} style={styles.profileHeader}>
+                    <Avatar name={displayName} size={96} />
+                    <Text style={styles.profileName}>{displayName}</Text>
+                    <Text style={styles.profileEmail}>{email}</Text>
                 </Animated.View>
 
-                {/* ── Profile card ── */}
-                <Animated.View entering={FadeInDown.delay(160).duration(600)} style={styles.profileCard}>
-                    <Avatar name={displayName} size={80} />
-
-                    <View style={styles.profileText}>
-                        <Text style={styles.profileName}>{displayName}</Text>
-                        <Text style={styles.profileEmail}>{email}</Text>
-                    </View>
-
-                    {/* Stats row */}
+                {/* Stats row */}
+                <Animated.View entering={FadeInDown.delay(200).duration(600)} style={styles.statsContainer}>
                     <View style={styles.statsRow}>
-                        <StatPill icon="calendar-outline" label="Joined" value={memberSince} color={PERIWINKLE} />
+                        <StatPill icon="calendar-outline" label="Joined" value={memberSince.split(' ')[0]} color={PERIWINKLE} />
                         <StatPill icon="language-outline" label="Languages" value="2" color={SAFFRON} />
                         <StatPill icon="mic-outline" label="Tests" value="4" color="#3DC47B" />
                     </View>
                 </Animated.View>
 
-                {/* ── Account ── */}
-                <Animated.View entering={FadeIn.delay(280).duration(500)} style={styles.section}>
-                    <SectionLabel label="Account" />
+                {/* ── Settings sections ── */}
+                <Animated.View entering={FadeIn.delay(300).duration(500)} style={styles.section}>
                     <Card>
                         <SettingRow
                             icon="person-outline"
                             iconColor={PERIWINKLE} iconBg={PERIWINKLE + '18'}
                             label="Edit Profile"
-                            sublabel="Update your name and details"
-                            onPress={() => { }}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }}
                         />
                         <SettingRow
                             icon="notifications-outline"
                             iconColor={SAFFRON} iconBg={SAFFRON + '18'}
                             label="Daily Reminders"
-                            sublabel="Get nudged to practice every day"
                             showArrow={false}
                             rightElement={
                                 <Switch
@@ -291,48 +286,40 @@ export default function AccountScreen() {
                                     thumbColor={Platform.OS === 'ios' ? '#FFF' : notifEnabled ? SAFFRON : '#9CA3AF'}
                                 />
                             }
-                            isLast
                         />
-                    </Card>
-                </Animated.View>
-
-                {/* ── Practice ── */}
-                <Animated.View entering={FadeIn.delay(350).duration(500)} style={styles.section}>
-                    <SectionLabel label="Practice" />
-                    <Card>
                         <SettingRow
                             icon="mic-outline"
                             iconColor="#3DC47B" iconBg="#3DC47B18"
-                            label="Test a Language"
-                            sublabel="Measure your fluency & pace"
-                            onPress={() => { }}
+                            label="Add Your Known Language"
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push('/test/');
+                            }}
                         />
                         <SettingRow
                             icon="book-outline"
                             iconColor="#5B8BC4" iconBg="#5B8BC418"
                             label="Learn a Language"
-                            sublabel="Start a course from your home tab"
-                            onPress={() => { }}
-                            isLast
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push('/');
+                            }}
                         />
-                    </Card>
-                </Animated.View>
-
-                {/* ── Support ── */}
-                <Animated.View entering={FadeIn.delay(420).duration(500)} style={styles.section}>
-                    <SectionLabel label="Support" />
-                    <Card>
                         <SettingRow
                             icon="shield-checkmark-outline"
                             iconColor="#6B5F72" iconBg="rgba(107,95,114,0.1)"
                             label="Privacy Policy"
-                            onPress={() => { }}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }}
                         />
                         <SettingRow
                             icon="document-text-outline"
                             iconColor="#6B5F72" iconBg="rgba(107,95,114,0.1)"
                             label="Terms of Service"
-                            onPress={() => { }}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            }}
                         />
                         <SettingRow
                             icon="information-circle-outline"
@@ -346,7 +333,7 @@ export default function AccountScreen() {
                 </Animated.View>
 
                 {/* ── Sign out ── */}
-                <Animated.View entering={FadeIn.delay(490).duration(500)} style={styles.section}>
+                <Animated.View entering={FadeIn.delay(400).duration(500)} style={styles.section}>
                     <Card>
                         <SettingRow
                             icon="log-out-outline"
@@ -360,7 +347,7 @@ export default function AccountScreen() {
                 </Animated.View>
 
                 {/* Footer */}
-                <Animated.View entering={FadeIn.delay(560).duration(500)} style={styles.footer}>
+                <Animated.View entering={FadeIn.delay(500).duration(500)} style={styles.footer}>
                     <Text style={styles.footerText}>boli.ai · Powered by Sarvam AI 🇮🇳</Text>
                 </Animated.View>
             </ScrollView>
@@ -373,41 +360,38 @@ const styles = StyleSheet.create({
 
     bgOrb: {
         position: 'absolute',
-        top: -width * 0.4,
+        top: -width * 0.5,
         right: -width * 0.3,
-        width: width * 0.9,
-        height: width * 0.9,
-        borderRadius: width * 0.45,
-        backgroundColor: SAFFRON,
-        opacity: 0.07,
+        width: width * 1.2,
+        height: width * 1.2,
+        borderRadius: width * 0.6,
+        backgroundColor: PERIWINKLE,
+        opacity: 0.08,
     },
 
     scroll: { paddingHorizontal: 20 },
 
-    titleRow: { marginBottom: 20 },
-    pageTitle: {
-        fontSize: 34, fontWeight: '800', color: DARK, letterSpacing: -1.5,
+    // Profile header
+    profileHeader: {
+        alignItems: 'center',
+        paddingTop: 20,
+        paddingBottom: 24,
+        gap: 12,
     },
-
-    // Profile card
-    profileCard: {
-        backgroundColor: CARD_BG,
-        borderRadius: 24, padding: 24,
-        alignItems: 'center', gap: 12,
-        marginBottom: 24,
-        borderWidth: 1, borderColor: 'rgba(28,18,24,0.07)',
-        boxShadow: '0 4px 20px rgba(28,18,24,0.07)',
-    },
-    profileText: { alignItems: 'center', gap: 3 },
     profileName: {
-        fontSize: 22, fontWeight: '800', color: DARK, letterSpacing: -0.5,
+        fontSize: 28, fontWeight: '800', color: DARK, letterSpacing: -1,
+        marginTop: 8,
     },
-    profileEmail: { fontSize: 14, color: MID },
+    profileEmail: { fontSize: 15, color: MID, fontWeight: '500' },
 
-    statsRow: { flexDirection: 'row', gap: 10, width: '100%', marginTop: 6 },
+    // Stats
+    statsContainer: {
+        marginBottom: 32,
+    },
+    statsRow: { flexDirection: 'row', gap: 10 },
 
     section: { marginBottom: 16 },
 
-    footer: { alignItems: 'center', paddingTop: 12 },
+    footer: { alignItems: 'center', paddingTop: 20 },
     footerText: { fontSize: 12, color: 'rgba(107,95,114,0.45)', letterSpacing: 0.3 },
 });
