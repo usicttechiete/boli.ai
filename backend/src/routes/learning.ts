@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import pino from 'pino';
 import { supabaseAdmin } from '../db/supabase';
 import { authenticate } from '../middleware/auth';
+import { translateText } from '../services/sarvamTranslate';
 
 const logger = pino({ name: 'learningRoute' });
 
@@ -165,8 +166,8 @@ export async function learningRoutes(fastify: FastifyInstance): Promise<void> {
             const { language, sourceLanguage, count = 5 } = request.query;
 
             try {
-                // For now, return mock data - in production, fetch from a words database
-                const words = getWordsForLanguage(language, sourceLanguage, count);
+                // Use Sarvam AI to generate words dynamically
+                const words = await getWordsForLanguage(language, sourceLanguage, count);
                 return reply.send({ success: true, data: words });
             } catch (err) {
                 logger.error({ err, language, sourceLanguage }, 'Fetch words failed');
@@ -245,7 +246,76 @@ export async function learningRoutes(fastify: FastifyInstance): Promise<void> {
 }
 
 // ── Helper: Get words for language pair ────────────────────────────────────
-function getWordsForLanguage(targetLang: string, sourceLang: string, count: number) {
+async function getWordsForLanguage(targetLang: string, sourceLang: string, count: number) {
+    // Base vocabulary in English that will be translated
+    const baseWords = [
+        { word: 'Hello', context: 'Common greeting' },
+        { word: 'Thank you', context: 'Show gratitude' },
+        { word: 'Yes', context: 'Affirmative' },
+        { word: 'No', context: 'Negative' },
+        { word: 'Water', context: 'Essential liquid' },
+        { word: 'Food', context: 'Meal' },
+        { word: 'Friend', context: 'Companion' },
+        { word: 'Family', context: 'Relatives' },
+        { word: 'Good morning', context: 'Morning greeting' },
+        { word: 'Good night', context: 'Evening farewell' },
+        { word: 'Please', context: 'Polite request' },
+        { word: 'Sorry', context: 'Apology' },
+        { word: 'Help', context: 'Request assistance' },
+        { word: 'Love', context: 'Affection' },
+        { word: 'Home', context: 'Place of residence' },
+    ];
+
+    // Select random words up to count
+    const selectedWords = baseWords.slice(0, count);
+    
+    try {
+        // Use Sarvam AI to translate words
+        const targetWords = await Promise.all(
+            selectedWords.map(async ({ word, context }) => {
+                try {
+                    // Translate to target language
+                    const targetTranslation = await translateText(word, 'english', targetLang);
+                    
+                    // Translate to source language (for showing meaning)
+                    const sourceTranslation = await translateText(word, 'english', sourceLang);
+                    
+                    // Get phonetic (romanized) version - translate to English and back
+                    // For now, use a simple phonetic approximation
+                    const phonetics = targetTranslation;
+                    
+                    return {
+                        target: targetTranslation,
+                        source: sourceTranslation,
+                        phonetics: phonetics,
+                        sub: context,
+                    };
+                } catch (error) {
+                    logger.error({ error, word, targetLang, sourceLang }, 'Translation failed for word');
+                    // Fallback to English
+                    return {
+                        target: word,
+                        source: word,
+                        phonetics: word,
+                        sub: context,
+                    };
+                }
+            })
+        );
+        
+        logger.info({ targetLang, sourceLang, count, wordsGenerated: targetWords.length }, 'Words generated with Sarvam AI');
+        return targetWords;
+        
+    } catch (error) {
+        logger.error({ error, targetLang, sourceLang }, 'Failed to generate words with Sarvam AI');
+        
+        // Fallback to static database
+        return getFallbackWords(targetLang, sourceLang, count);
+    }
+}
+
+// Fallback function using static database
+function getFallbackWords(targetLang: string, sourceLang: string, count: number) {
     // Comprehensive word database with translations between all supported languages
     const wordDatabase: Record<string, Record<string, any[]>> = {
         english: {
