@@ -1,12 +1,15 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
-import jwt from 'jsonwebtoken';
+import { supabaseAdmin } from '../db/supabase';
 import { ERROR_CODES, JwtPayload } from '../types/index';
 
 /**
  * Fastify preHandler — verifies Supabase-issued JWT on every protected route.
  *
- * Supabase signs access tokens with HS256 using the project's JWT secret.
- * We verify the signature here and attach the decoded payload to `request.user`.
+ * Uses `supabase.auth.getUser(token)` which makes a server-side call to
+ * Supabase Auth to validate the token. This is the recommended approach as it:
+ *   - Works with both symmetric (HS256) and asymmetric keys
+ *   - Handles token revocation correctly
+ *   - Doesn't require storing the JWT secret locally
  *
  * The client must send: Authorization: Bearer <supabase_access_token>
  */
@@ -27,27 +30,32 @@ export async function authenticate(
     }
 
     const token = authHeader.slice(7); // strip "Bearer "
-    const jwtSecret = process.env.SUPABASE_JWT_SECRET;
-
-    if (!jwtSecret) {
-        request.log.error('SUPABASE_JWT_SECRET is not set');
-        return reply.status(500).send({
-            success: false,
-            error: {
-                code: ERROR_CODES.INTERNAL_ERROR,
-                message: 'Server configuration error',
-            },
-        });
-    }
 
     try {
-        const decoded = jwt.verify(token, jwtSecret, {
-            algorithms: ['HS256'],
-        }) as JwtPayload;
+        // Validate the JWT via Supabase Auth server (handles revocation, expiry, etc.)
+        const {
+            data: { user },
+            error,
+        } = await supabaseAdmin.auth.getUser(token);
 
-        request.user = decoded;
+        if (error || !user) {
+            request.log.warn({ err: error }, 'JWT verification failed');
+            return reply.status(401).send({
+                success: false,
+                error: {
+                    code: ERROR_CODES.AUTH_REQUIRED,
+                    message: 'Invalid or expired token',
+                },
+            });
+        }
+
+        // Attach decoded user info to the request
+        request.user = {
+            sub: user.id,
+            email: user.email,
+        } satisfies JwtPayload;
     } catch (err) {
-        request.log.warn({ err }, 'JWT verification failed');
+        request.log.error(err, 'Unexpected auth error');
         return reply.status(401).send({
             success: false,
             error: {

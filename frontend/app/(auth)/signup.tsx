@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -27,8 +28,6 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // ── Password strength indicator ──────────────────────────────────────────────
 function PasswordStrength({ password }: { password: string }) {
@@ -93,6 +92,7 @@ function OrnamentScroll({ color = 'rgba(139,143,212,0.3)' }: { color?: string })
 
 export default function SignupScreen() {
     const insets = useSafeAreaInsets();
+    const { signUp } = useAuth();
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -141,27 +141,19 @@ export default function SignupScreen() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/api/auth/register`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    email: email.trim(),
-                    password,
-                    full_name: fullName.trim(),
-                }),
+            // Auth happens directly via Supabase SDK (no backend call)
+            // The full_name is stored in raw_user_meta_data → used by DB trigger
+            const errorMsg = await signUp(email.trim(), password, {
+                full_name: fullName.trim(),
             });
-
-            const json = await res.json();
-            if (!res.ok || !json.success) {
-                throw new Error(json.error?.message ?? 'Registration failed. Please try again.');
+            if (errorMsg) {
+                throw new Error(errorMsg);
             }
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            Alert.alert(
-                'Account created! 🎉',
-                'Welcome to boli.ai. Start your voice coaching journey.',
-                [{ text: 'Get started', onPress: () => router.replace('/(tabs)') }],
-            );
+            // If Supabase auto-confirms, AuthProvider in _layout.tsx will
+            // detect the session and navigate to (tabs) automatically.
+            // If email confirmation is required, the user gets an alert from AuthContext.
         } catch (err: any) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             Alert.alert('Sign up failed', err.message ?? 'Something went wrong.');

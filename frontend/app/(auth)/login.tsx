@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
@@ -27,8 +28,6 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width, height } = Dimensions.get('window');
-
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 // ── Ornamental SVG-like decorative dots pattern ─────────────────────────────
 function OrnamentalDots({ color = 'rgba(255,255,255,0.25)', size = 5 }: { color?: string; size?: number }) {
@@ -102,6 +101,7 @@ function MandalaRing({ size = 120, color = 'rgba(255,200,120,0.18)' }: { size?: 
 
 export default function LoginScreen() {
     const insets = useSafeAreaInsets();
+    const { signIn } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -145,19 +145,14 @@ export default function LoginScreen() {
 
         setLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: email.trim(), password }),
-            });
-
-            const json = await res.json();
-            if (!res.ok || !json.success) {
-                throw new Error(json.error?.message ?? 'Login failed. Please try again.');
+            // Auth happens directly via Supabase SDK (no backend call)
+            const errorMsg = await signIn(email.trim(), password);
+            if (errorMsg) {
+                throw new Error(errorMsg);
             }
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.replace('/(tabs)');
+            // Navigation is handled automatically by AuthProvider in _layout.tsx
         } catch (err: any) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             Alert.alert('Login Failed', err.message ?? 'Something went wrong.');
