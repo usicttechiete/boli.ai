@@ -1,9 +1,30 @@
-import { ThemedText } from '@/components/themed-text';
-import { Colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Dimensions,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
+import Animated, {
+    FadeIn,
+    FadeInDown,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
+
+const SAFFRON = '#E8813C';
+const PERIWINKLE = '#8B8FD4';
+const OFF_WHITE = '#F7F3EE';
+const CREAM = '#FFFAF4';
+const DARK = '#1C1218';
+const MID = '#6B5F72';
 
 type RecordingState = 'idle' | 'recording' | 'review' | 'processing';
 
@@ -18,9 +39,49 @@ const SAMPLE_PARAGRAPHS: Record<string, string> = {
     kannada: "ಎಲ್ಲಾ ಮಾನವರು ಸ್ವತಂತ್ರರಾಗಿಯೇ ಜನಿಸಿದ್ದಾರೆ. ಅವರಿಗೆ ಘನತೆ ಮತ್ತು ಹಕ್ಕುಗಳಲ್ಲಿ ಸಮಾನತೆ ಇದೆ. ಅವರಲ್ಲಿ ವಿವೇಚನೆ ಮತ್ತು ಅಂತಃಕರಣ ಇರುವದರಿಂದ, ಅವರು ಒಬ್ಬರಿಗೊಬ್ಬರು ಸಹೋದರತೆಯ ಭಾವನೆಯಿಂದ ವರ್ತಿಸಬೇಕು.",
     odia: "ସବୁ ମନୁଷ୍ୟ ଜନ୍ମଗତ ଭାବରେ ସ୍ୱାଧୀନ ଏବଂ ସମ୍ମାନ ତଥା ଅଧିକାରରେ ସମାନ। ସେମାନଙ୍କର ବିଚାର ଶକ୍ତି ଏବଂ ବିବେକ ଅଛି ଏବଂ ସେମାନେ ପରସ୍ପର ପ୍ରତି ଭ୍ରାତୃଭାବରେ ବ୍ୟବହାର କରିବା ଉଚିତ୍।",
     malayalam: "എല്ലാ മനുഷ്യരും സ്വതന്ത്രരായാണ് ജനിക്കുന്നത്. അവർക്ക് തുല്യമായ അവകാശങ്ങളും അന്തസ്സുമുണ്ട്. അവർക്ക് ബുദ്ധിയും മനസ്സാക്ഷിയും ഉണ്ട്, അതിനാൽ അവർ പരസ്പരം സഹോദരങ്ങളെപ്പോലെ പെരുമാറണം.",
-    punjabi: "ਸਾਰੇ ਇਨਸਾਨ ਜਨਮ ਤੋਂ ਹੀ ਆਜ਼ਾਦ ਹਨ ਅਤੇ ਉਨ੍ਹਾਂ ਨੂੰ ਬਰਾਬਰ ਦੇ ਹੱਕਾਂ ਅਤੇ ਬਰਾਬਰ ਦੀ ਇੱਜ਼ਤ ਦਾ ਅਧਿਕਾਰ ਹੈ। ਉਨ੍ਹਾਂ ਨੂੰ ਅਕਲ ਅਤੇ ਜ਼ਮੀਰ ਦੀ ਦਾਤ ਮਿਲੀ ਹੋਈ ਹੈ, ਇਸ ਲਈ ਉਨ੍ਹਾਂ ਨੂੰ ਇੱਕ ਦੂਜੇ ਨਾਲ ਭਾਈਚਾਰੇ ਵਾਲਾ ਸਲੂਕ ਕਰਨਾ ਚਾਹੀਦਾ ਹੈ।",
+    punjabi: "ਸਾਰੇ ਇਨਸਾਨ ਜਨਮ ਤੋਂ ਹੀ ਆਜ਼ਾਦ ਹਨ ਅਤੇ ਉਨ੍ਹਾਂ ਨੂੰ ਬਰਾਬਰ ਦੇ ਹੱਕਾਂ ਅਤੇ ਬਰਾਬਰ ਦੀ ਇੱਜ਼ਤ ਦਾ ਅਧਿਕਾਰ ਹੈ। ਉਨ੍ਹਾਂ ਨੂੰ ਅਕਲ ਅਤੇ ਜ਼ਮੀਰ ਦੀ ਦਾਤ ਮਿਲੀ ਹੋਈ ਹੈ, ਇਸ ਲਈ ਉਨ੍ਹਾਂ ਨੂੰ ਇੱਕ ਦੂਜੇ ਨਾਲ ਭਾਈਚਾਰੇ ਵਾਲਾ ਸਲੂਕ ਕਰਨਾ ਚਾਹੀਦਾ ਹੈ।",
     default: "Please read this sample text aloud to measure your speaking pace, accent clarity, and overall fluency. Try to speak as naturally as you would in a normal conversation."
 };
+
+const LANGUAGE_META: Record<string, { symbol: string; orbColor: string; orbLight: string }> = {
+    english: { symbol: 'A', orbColor: PERIWINKLE, orbLight: '#EEEEF9' },
+    hindi: { symbol: 'नमस्ते', orbColor: SAFFRON, orbLight: '#FFF0E4' },
+    bengali: { symbol: 'আ', orbColor: '#5BB8C4', orbLight: '#E8F7F8' },
+    marathi: { symbol: 'म', orbColor: '#C45BB8', orbLight: '#F8E8F7' },
+    telugu: { symbol: 'తె', orbColor: '#5BC45B', orbLight: '#E8F8E8' },
+    tamil: { symbol: 'த', orbColor: '#C4855B', orbLight: '#F8EDE8' },
+    gujarati: { symbol: 'ગ', orbColor: '#7B5BC4', orbLight: '#EEE8F8' },
+    kannada: { symbol: 'ಕ', orbColor: '#C47B5B', orbLight: '#F8F0E8' },
+    odia: { symbol: 'ଓ', orbColor: '#5B8BC4', orbLight: '#E8EFF8' },
+    malayalam: { symbol: 'ആ', orbColor: '#C45B8B', orbLight: '#F8E8EF' },
+    punjabi: { symbol: 'ਸਤਿ', orbColor: '#8BC45B', orbLight: '#EFF8E8' },
+};
+
+function LanguageOrb({ symbol, orbColor, orbLight, size = 80 }: {
+    symbol: string; orbColor: string; orbLight: string; size?: number;
+}) {
+    const isLong = symbol.length > 2;
+    return (
+        <View style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center' }}>
+            {[size + 24, size + 10].map((s, i) => (
+                <View key={i} style={{
+                    position: 'absolute', width: s, height: s, borderRadius: s / 2,
+                    borderWidth: 1, borderColor: orbColor + (i === 0 ? '18' : '30'),
+                }} />
+            ))}
+            <View style={{
+                width: size, height: size, borderRadius: size / 2,
+                backgroundColor: orbLight, borderWidth: 2.5, borderColor: orbColor + '55',
+                alignItems: 'center', justifyContent: 'center',
+                boxShadow: `0 6px 20px ${orbColor}30`,
+            }}>
+                <Text style={{ fontSize: isLong ? size * 0.18 : size * 0.36, fontWeight: '800', color: orbColor, textAlign: 'center' }}>
+                    {symbol}
+                </Text>
+            </View>
+        </View>
+    );
+}
 
 export default function TestLanguageScreen() {
     const { language } = useLocalSearchParams();
@@ -29,22 +90,17 @@ export default function TestLanguageScreen() {
         ? language.charAt(0).toUpperCase() + language.slice(1)
         : 'English';
 
+    const meta = LANGUAGE_META[langKey] || LANGUAGE_META.english;
     const paragraph = SAMPLE_PARAGRAPHS[langKey] || SAMPLE_PARAGRAPHS.default;
 
+    const insets = useSafeAreaInsets();
     const [recordState, setRecordState] = useState<RecordingState>('idle');
     const [timer, setTimer] = useState(0);
 
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-    const theme = Colors[isDark ? 'dark' : 'light'];
-
-    // Mock timer functionality just for UI demonstration
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (recordState === 'recording') {
-            interval = setInterval(() => {
-                setTimer((prev) => prev + 1);
-            }, 1000);
+            interval = setInterval(() => setTimer((prev) => prev + 1), 1000);
         } else if (recordState === 'idle') {
             setTimer(0);
         }
@@ -58,354 +114,219 @@ export default function TestLanguageScreen() {
     };
 
     const handleMicPress = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         if (recordState === 'idle') setRecordState('recording');
         else if (recordState === 'recording') setRecordState('review');
     };
 
     const handleRerecord = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setRecordState('idle');
     };
 
     const handleSubmit = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setRecordState('processing');
-        // Mock processing delay, then navigate
         setTimeout(() => router.push({ pathname: '/test/analysis' as any, params: { language } }), 3000);
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-            {/* 1. Header Area */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                    <Ionicons name="chevron-back" size={28} color={theme.text} />
-                </TouchableOpacity>
-                <ThemedText type="subtitle" style={styles.headerTitle}>
-                    Test your {displayLang}
-                </ThemedText>
-                <View style={styles.headerRight} />
-            </View>
+        <View style={styles.root}>
+            <View style={[styles.bgOrb, { backgroundColor: meta.orbColor }]} />
 
-            {/* Main Content */}
-            <ScrollView contentContainerStyle={styles.content}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 32, paddingBottom: insets.bottom + 140 }]}
+            >
+                {/* Language orb */}
+                <Animated.View entering={FadeInDown.delay(100).duration(600)} style={styles.orbBlock}>
+                    <LanguageOrb symbol={meta.symbol} orbColor={meta.orbColor} orbLight={meta.orbLight} size={80} />
+                    <Text style={styles.testingLabel}>TESTING</Text>
+                    <Text style={styles.languageName}>{displayLang}</Text>
+                </Animated.View>
 
-                {/* 2. Instructions & Paragraph Card */}
-                <View style={styles.instructionsContainer}>
-                    <View style={[styles.iconBadge, { backgroundColor: theme.tint + '15' }]}>
-                        <Ionicons name="mic-outline" size={24} color={theme.tint} />
-                    </View>
-                    <ThemedText style={styles.instructionText}>
-                        Please read the paragraph below aloud. Speak naturally!
-                    </ThemedText>
-                </View>
+                {/* Ornamental divider */}
+                <Animated.View entering={FadeIn.delay(200).duration(500)} style={styles.ornRow}>
+                    <View style={styles.ornLine} />
+                    <Text style={[styles.ornGlyph, { color: meta.orbColor }]}>◆</Text>
+                    <View style={styles.ornLine} />
+                </Animated.View>
 
-                <View style={[styles.paragraphCard, {
-                    backgroundColor: isDark ? '#1a202c' : '#f8fafc',
-                    borderColor: isDark ? '#2d3748' : '#e2e8f0'
-                }]}>
-                    <Ionicons name="document-text" size={24} color={isDark ? '#4a5568' : '#cbd5e0'} style={styles.quoteIcon} />
-                    <ThemedText style={[styles.paragraphText, { color: isDark ? '#e2e8f0' : '#1e293b' }]}>
+                {/* Instructions */}
+                <Animated.View entering={FadeInDown.delay(250).duration(600)} style={styles.instructionBlock}>
+                    <Text style={styles.instructionTitle}>Read aloud</Text>
+                    <Text style={styles.instructionSub}>
+                        Speak naturally and clearly. We'll measure your pace, accent, and fluency.
+                    </Text>
+                </Animated.View>
+
+                {/* Paragraph card */}
+                <Animated.View entering={FadeIn.delay(350).duration(600)} style={[styles.paragraphCard, { backgroundColor: meta.orbLight, borderColor: meta.orbColor + '30' }]}>
+                    <Text style={[styles.paragraphText, { color: DARK }]}>
                         {paragraph}
-                    </ThemedText>
-                </View>
+                    </Text>
+                </Animated.View>
 
-            </ScrollView>
-
-            {/* 3. Recording Controls */}
-            <View style={[styles.footer, {
-                backgroundColor: isDark ? '#1a202c' : '#ffffff',
-                borderTopColor: isDark ? '#2d3748' : '#e2e8f0'
-            }]}>
-
-                {recordState === 'idle' && (
-                    <View style={styles.controlCenter}>
-                        <ThemedText style={styles.helperText}>Tap to Start</ThemedText>
-                        <TouchableOpacity
-                            style={[styles.recordButton, { backgroundColor: theme.tint }]}
-                            onPress={handleMicPress}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name="mic" size={36} color="#fff" />
-                        </TouchableOpacity>
-                    </View>
-                )}
-
+                {/* Recording status */}
                 {recordState === 'recording' && (
-                    <View style={styles.controlCenter}>
-                        <View style={styles.timerContainer}>
-                            <View style={[styles.recordingDot, { backgroundColor: '#ef4444' }]} />
-                            <ThemedText type="subtitle" style={styles.timerText}>{formatTime(timer)}</ThemedText>
-                        </View>
-                        <TouchableOpacity
-                            style={[styles.stopButton, { backgroundColor: '#ef4444' }]}
-                            onPress={handleMicPress}
-                            activeOpacity={0.8}
-                        >
-                            <Ionicons name="square" size={24} color="#fff" />
-                        </TouchableOpacity>
-                        <ThemedText style={[styles.helperText, { marginTop: 16 }]}>Recording in progress...</ThemedText>
-                    </View>
+                    <Animated.View entering={FadeIn.duration(300)} style={styles.recordingStatus}>
+                        <View style={styles.recordingDot} />
+                        <Text style={styles.recordingText}>Recording · {formatTime(timer)}</Text>
+                    </Animated.View>
                 )}
 
                 {recordState === 'review' && (
-                    <View style={styles.reviewContainer}>
-                        <ThemedText style={styles.helperText}>Recording complete ({formatTime(timer)})</ThemedText>
-                        <View style={styles.reviewActions}>
-                            <TouchableOpacity
-                                style={[styles.iconButton, { backgroundColor: isDark ? '#2d3748' : '#f1f5f9' }]}
-                                onPress={handleRerecord}
-                            >
-                                <Ionicons name="trash-outline" size={24} color="#ef4444" />
-                                <ThemedText style={styles.iconButtonText}>Rerecord</ThemedText>
-                            </TouchableOpacity>
+                    <Animated.View entering={FadeIn.duration(300)} style={styles.reviewStatus}>
+                        <Ionicons name="checkmark-circle" size={20} color="#3DC47B" />
+                        <Text style={styles.reviewText}>Recording complete · {formatTime(timer)}</Text>
+                    </Animated.View>
+                )}
+            </ScrollView>
 
-                            <TouchableOpacity
-                                style={[styles.primaryButton, { backgroundColor: theme.tint }]}
-                                onPress={handleSubmit}
-                            >
-                                <ThemedText style={styles.primaryButtonText}>Submit for Analysis</ThemedText>
-                                <Ionicons name="arrow-forward" size={20} color="#fff" />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+            {/* Footer controls */}
+            <Animated.View
+                entering={FadeIn.delay(400).duration(500)}
+                style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}
+            >
+                {recordState === 'idle' && (
+                    <Pressable
+                        style={[styles.recordBtn, { backgroundColor: meta.orbColor, boxShadow: `0 6px 20px ${meta.orbColor}35` }]}
+                        onPress={handleMicPress}
+                    >
+                        <Ionicons name="mic" size={28} color={CREAM} />
+                        <Text style={styles.recordBtnText}>Start Recording</Text>
+                    </Pressable>
                 )}
 
-            </View>
+                {recordState === 'recording' && (
+                    <Pressable
+                        style={[styles.stopBtn, { backgroundColor: '#ef4444', boxShadow: '0 6px 20px rgba(239,68,68,0.35)' }]}
+                        onPress={handleMicPress}
+                    >
+                        <Ionicons name="stop" size={28} color={CREAM} />
+                        <Text style={styles.stopBtnText}>Stop Recording</Text>
+                    </Pressable>
+                )}
 
-            {/* 4. Processing State Form */}
-            {recordState === 'processing' && (
-                <View style={[styles.processingOverlay, { backgroundColor: isDark ? 'rgba(0,0,0,0.85)' : 'rgba(255,255,255,0.95)' }]}>
-                    <View style={[styles.processingCard, { backgroundColor: isDark ? '#1a202c' : '#fff' }]}>
-                        <ActivityIndicator size="large" color={theme.tint} style={styles.spinner} />
-                        <ThemedText type="subtitle" style={styles.processingTitle}>Analyzing your speech</ThemedText>
-                        <ThemedText style={styles.processingDesc}>
-                            Measuring pace, accent, and fluency...
-                        </ThemedText>
-
-                        {/* For UI mockup purposes: back to idle */}
-                        <TouchableOpacity
-                            style={{ marginTop: 32, padding: 12 }}
-                            onPress={() => setRecordState('idle')}
+                {recordState === 'review' && (
+                    <View style={styles.reviewActions}>
+                        <Pressable style={styles.rerecordBtn} onPress={handleRerecord}>
+                            <Ionicons name="refresh" size={20} color="#ef4444" />
+                            <Text style={styles.rerecordText}>Rerecord</Text>
+                        </Pressable>
+                        <Pressable
+                            style={[styles.submitBtn, { backgroundColor: meta.orbColor, boxShadow: `0 6px 20px ${meta.orbColor}35` }]}
+                            onPress={handleSubmit}
                         >
-                            <ThemedText style={{ color: theme.tint, fontWeight: '600' }}>Cancel</ThemedText>
-                        </TouchableOpacity>
+                            <Text style={styles.submitBtnText}>Submit →</Text>
+                        </Pressable>
+                    </View>
+                )}
+            </Animated.View>
+
+            {/* Processing overlay */}
+            {recordState === 'processing' && (
+                <View style={styles.processingOverlay}>
+                    <View style={styles.processingCard}>
+                        <ActivityIndicator size="large" color={meta.orbColor} style={{ marginBottom: 20 }} />
+                        <Text style={styles.processingTitle}>Analyzing your speech</Text>
+                        <Text style={styles.processingDesc}>Measuring pace, accent, and fluency...</Text>
                     </View>
                 </View>
             )}
-
-        </SafeAreaView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    root: { flex: 1, backgroundColor: OFF_WHITE },
+
+    bgOrb: {
+        position: 'absolute', top: -width * 0.35, right: -width * 0.15,
+        width: width * 1.1, height: width * 0.9, borderRadius: width * 0.55, opacity: 0.09,
     },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-    },
-    backButton: {
-        padding: 8,
-        marginLeft: -8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-    },
-    headerRight: {
-        width: 44,
-    },
-    content: {
-        padding: 24,
-        flexGrow: 1,
-    },
-    instructionsContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 24,
-    },
-    iconBadge: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 16,
-    },
-    instructionText: {
-        flex: 1,
-        fontSize: 16,
-        lineHeight: 24,
-        fontWeight: '500',
-    },
+
+    scroll: { paddingHorizontal: 20 },
+
+    orbBlock: { alignItems: 'center', paddingTop: 16, paddingBottom: 16, gap: 8 },
+    testingLabel: { fontSize: 11, fontWeight: '700', color: MID, letterSpacing: 0.8, textTransform: 'uppercase', marginTop: 4 },
+    languageName: { fontSize: 36, fontWeight: '800', color: DARK, letterSpacing: -1.5 },
+
+    ornRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 20 },
+    ornLine: { flex: 1, height: 1, backgroundColor: 'rgba(232,129,60,0.2)' },
+    ornGlyph: { fontSize: 12, opacity: 0.7 },
+
+    instructionBlock: { marginBottom: 20, gap: 6 },
+    instructionTitle: { fontSize: 24, fontWeight: '800', color: DARK, letterSpacing: -0.8 },
+    instructionSub: { fontSize: 14, color: MID, lineHeight: 20 },
+
     paragraphCard: {
-        padding: 24,
-        borderRadius: 24,
-        borderWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 2,
-        position: 'relative',
-        minHeight: 220,
-        justifyContent: 'center',
+        borderRadius: 24, padding: 24, borderWidth: 2,
+        boxShadow: '0 4px 16px rgba(28,18,24,0.06)',
+        minHeight: 200, justifyContent: 'center',
     },
-    quoteIcon: {
-        position: 'absolute',
-        top: 20,
-        left: 20,
-        opacity: 0.3,
-    },
-    paragraphText: {
-        fontSize: 24,
-        lineHeight: 38,
-        textAlign: 'center',
-        fontWeight: '500',
-        marginTop: 16,
-    },
-    footer: {
-        paddingStart: 24,
-        paddingEnd: 24,
-        paddingTop: 24,
-        paddingBottom: 40,
-        borderTopWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 10,
-    },
-    controlCenter: {
-        alignItems: 'center',
-    },
-    helperText: {
-        fontSize: 15,
-        color: '#64748b',
-        marginBottom: 16,
-        fontWeight: '500',
-        textAlign: 'center',
-    },
-    recordButton: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#0a7ea4',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    stopButton: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#ef4444',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 16,
-        elevation: 8,
-    },
-    timerContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 20,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
+    paragraphText: { fontSize: 17, lineHeight: 28, textAlign: 'center', fontWeight: '500' },
+
+    recordingStatus: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        marginTop: 20, gap: 8,
     },
     recordingDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginRight: 8,
+        width: 10, height: 10, borderRadius: 5, backgroundColor: '#ef4444',
     },
-    timerText: {
-        color: '#ef4444',
-        fontSize: 20,
-        fontWeight: '700',
-        fontVariant: ['tabular-nums'],
+    recordingText: { fontSize: 14, color: '#ef4444', fontWeight: '600' },
+
+    reviewStatus: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        marginTop: 20, gap: 8,
     },
-    reviewContainer: {
-        width: '100%',
+    reviewText: { fontSize: 14, color: '#3DC47B', fontWeight: '600' },
+
+    footer: {
+        position: 'absolute', bottom: 0, left: 0, right: 0,
+        backgroundColor: CREAM, paddingHorizontal: 20, paddingTop: 16,
+        borderTopWidth: 1, borderTopColor: 'rgba(28,18,24,0.08)',
     },
-    reviewActions: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        gap: 16,
+
+    recordBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 18, paddingVertical: 18, gap: 10,
     },
-    iconButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-        borderRadius: 16,
+    recordBtnText: { fontSize: 18, fontWeight: '800', color: CREAM, letterSpacing: -0.3 },
+
+    stopBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 18, paddingVertical: 18, gap: 10,
     },
-    iconButtonText: {
-        color: '#ef4444',
-        marginLeft: 8,
-        fontWeight: '600',
-        fontSize: 16,
+    stopBtnText: { fontSize: 18, fontWeight: '800', color: CREAM, letterSpacing: -0.3 },
+
+    reviewActions: { flexDirection: 'row', gap: 12 },
+    rerecordBtn: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 18, paddingVertical: 18, paddingHorizontal: 24,
+        backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1.5, borderColor: '#ef4444',
+        gap: 8,
     },
-    primaryButton: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        borderRadius: 16,
-        shadowColor: '#0a7ea4',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 4,
+    rerecordText: { fontSize: 16, fontWeight: '700', color: '#ef4444' },
+
+    submitBtn: {
+        flex: 1, alignItems: 'center', justifyContent: 'center',
+        borderRadius: 18, paddingVertical: 18,
     },
-    primaryButtonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginRight: 8,
-    },
+    submitBtnText: { fontSize: 18, fontWeight: '800', color: CREAM, letterSpacing: -0.3 },
+
     processingOverlay: {
         ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
+        backgroundColor: 'rgba(247,243,238,0.95)',
+        justifyContent: 'center', alignItems: 'center',
         zIndex: 1000,
     },
     processingCard: {
-        width: '85%',
-        padding: 32,
-        borderRadius: 24,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 10,
+        backgroundColor: '#FFF', borderRadius: 24, padding: 32,
+        alignItems: 'center', width: '85%',
+        borderWidth: 1, borderColor: 'rgba(28,18,24,0.08)',
+        boxShadow: '0 10px 40px rgba(28,18,24,0.1)',
     },
-    spinner: {
-        marginBottom: 24,
-        transform: [{ scale: 1.5 }],
-    },
-    processingTitle: {
-        fontSize: 20,
-        marginBottom: 8,
-        textAlign: 'center',
-        fontWeight: 'bold',
-    },
-    processingDesc: {
-        fontSize: 15,
-        color: '#64748b',
-        textAlign: 'center',
-        lineHeight: 22,
-    },
+    processingTitle: { fontSize: 20, fontWeight: '800', color: DARK, marginBottom: 8, letterSpacing: -0.5 },
+    processingDesc: { fontSize: 14, color: MID, textAlign: 'center', lineHeight: 20 },
 });
