@@ -12,8 +12,7 @@ import {
 } from 'react-native';
 import Animated, {
   FadeIn,
-  FadeInDown,
-  FadeInRight,
+  FadeInDown
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -213,15 +212,12 @@ export default function HomeScreen() {
               </Pressable>
             </Animated.View>
           ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.knownList}
-            >
+            <View style={styles.knownGrid}>
               {knownLanguages.map((lang, i) => (
                 <Animated.View
                   key={lang.id}
-                  entering={FadeInRight.delay(300 + i * 100).duration(500)}
+                  entering={FadeInDown.delay(300 + i * 80).duration(500)}
+                  style={styles.knownCardWrap}
                 >
                   <Pressable
                     style={styles.knownCard}
@@ -232,36 +228,34 @@ export default function HomeScreen() {
                       symbol={lang.symbol}
                       orbColor={lang.orbColor}
                       orbLight={lang.orbLight}
-                      size={68}
+                      size={64}
                     />
                     <Text style={styles.knownLangName}>{lang.name}</Text>
                     <Text style={styles.knownFluency}>{lang.fluency}</Text>
-
-                    {/* Score badge */}
-                    <View style={[styles.scoreBadge, { backgroundColor: lang.orbLight }]}>
-                      <Text style={[styles.scoreNum, { color: lang.orbColor }]}>{lang.score}</Text>
-                      <Text style={[styles.scoreLabel, { color: lang.orbColor + 'AA' }]}>/100</Text>
-                    </View>
                   </Pressable>
                 </Animated.View>
               ))}
 
               {/* Add language card */}
-              <Animated.View entering={FadeInRight.delay(500).duration(500)}>
+              <Animated.View
+                entering={FadeInDown.delay(300 + knownLanguages.length * 80).duration(500)}
+                style={styles.knownCardWrap}
+              >
                 <Pressable
-                  style={styles.addLangCard}
+                  style={styles.addKnownCard}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push('/test' as any);
                   }}
                 >
-                  <View style={styles.addOrbCircle}>
-                    <Text style={styles.addOrbPlus}>+</Text>
+                  <View style={styles.addKnownOrb}>
+                    <Text style={styles.addKnownPlus}>+</Text>
                   </View>
-                  <Text style={styles.addLangLabel}>Add{'\n'}Language</Text>
+                  <Text style={styles.addKnownText}>Add Your</Text>
+                  <Text style={styles.addKnownText}>Language</Text>
                 </Pressable>
               </Animated.View>
-            </ScrollView>
+            </View>
           )}
         </Animated.View>
 
@@ -272,7 +266,7 @@ export default function HomeScreen() {
           </View>
           <OrnamentDivider />
 
-          {/* Active — 2 column grid */}
+          {/* Active languages - Coming soon style cards */}
           <View style={styles.learnGrid}>
             {ACTIVE_LANGUAGES.map((lang, i) => (
               <Animated.View
@@ -281,27 +275,23 @@ export default function HomeScreen() {
                 style={styles.learnCardWrap}
               >
                 <Pressable
-                  style={[styles.learnCard, { backgroundColor: lang.orbLight, borderColor: lang.orbColor + '35' }]}
+                  style={styles.learnCard}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                     router.push(`/learn/${lang.name.toLowerCase()}` as any);
                   }}
                 >
-                  {/* Large symbol orb */}
+                  {/* Symbol orb */}
                   <SymbolOrb
                     symbol={lang.symbol}
                     orbColor={lang.orbColor}
-                    orbLight={CREAM}
-                    size={80}
+                    orbLight={lang.orbLight}
+                    size={56}
                   />
-
-                  {/* Bottom subscript in native script */}
                   <Text style={[styles.learnNative, { color: lang.orbColor }]}>{lang.subSymbol}</Text>
                   <Text style={styles.learnName}>{lang.name}</Text>
-                  <Text style={styles.learnDesc}>{lang.description}</Text>
-
-                  <View style={[styles.learnCTA, { backgroundColor: lang.orbColor }]}>
-                    <Text style={styles.learnCTAText}>Start →</Text>
+                  <View style={[styles.startBadge, { backgroundColor: lang.orbColor }]}>
+                    <Text style={styles.startBadgeText}>Start</Text>
                   </View>
                 </Pressable>
               </Animated.View>
@@ -476,128 +466,102 @@ const styles = StyleSheet.create({
   },
 
   // ── Known languages ────────────────────────────────────────────────────────
-  knownList: {
-    paddingTop: 14,
-    paddingBottom: 4,
-    gap: 14,
+  knownGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 14,
+  },
+  knownCardWrap: {
+    width: (width - 40 - 32) / 3,
   },
   knownCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 22,
-    padding: 18,
     alignItems: 'center',
-    width: 150,
-    boxShadow: '0 4px 18px rgba(28,18,24,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(28,18,24,0.06)',
     gap: 8,
   },
   knownLangName: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: DARK,
     letterSpacing: -0.3,
+    textAlign: 'center',
   },
   knownFluency: {
     fontSize: 12,
     color: MID,
     fontWeight: '500',
-  },
-  scoreBadge: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    gap: 1,
-    marginTop: 2,
-  },
-  scoreNum: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  scoreLabel: {
-    fontSize: 11,
-    fontWeight: '600',
+    textAlign: 'center',
   },
 
-  addLangCard: {
-    backgroundColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 22,
-    padding: 18,
+  addKnownCard: {
     alignItems: 'center',
-    justifyContent: 'center',
-    width: 130,
-    borderWidth: 1.5,
-    borderColor: 'rgba(232,129,60,0.3)',
+    gap: 6,
+  },
+  addKnownOrb: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(232,129,60,0.12)',
+    borderWidth: 2,
+    borderColor: SAFFRON + '40',
     borderStyle: 'dashed',
-    gap: 10,
-  },
-  addOrbCircle: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    backgroundColor: 'rgba(232,129,60,0.1)',
-    borderWidth: 1.5,
-    borderColor: SAFFRON + '50',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  addOrbPlus: {
-    fontSize: 30,
+  addKnownPlus: {
+    fontSize: 28,
     color: SAFFRON,
     fontWeight: '300',
   },
-  addLangLabel: {
-    fontSize: 13,
+  addKnownText: {
+    fontSize: 12,
     fontWeight: '600',
     color: SAFFRON,
     textAlign: 'center',
-    lineHeight: 18,
+    lineHeight: 16,
   },
 
   // ── Learn section ─────────────────────────────────────────────────────────
   learnGrid: {
     flexDirection: 'row',
-    gap: 14,
+    flexWrap: 'wrap',
+    gap: 10,
     marginTop: 14,
   },
   learnCardWrap: {
-    flex: 1,
+    width: (width - 40 - 30) / 3,
   },
   learnCard: {
-    borderRadius: 24,
-    padding: 18,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 18,
+    padding: 14,
     alignItems: 'center',
-    borderWidth: 1.5,
-    gap: 8,
-    boxShadow: '0 4px 18px rgba(28,18,24,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(28,18,24,0.07)',
+    gap: 6,
+    boxShadow: '0 2px 12px rgba(28,18,24,0.04)',
   },
   learnNative: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.3,
-    marginTop: 4,
+    letterSpacing: 0.2,
+    marginTop: 2,
   },
   learnName: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: DARK,
-    letterSpacing: -0.5,
-  },
-  learnDesc: {
-    fontSize: 11,
-    color: MID,
-    textAlign: 'center',
-  },
-  learnCTA: {
-    borderRadius: 14,
-    paddingHorizontal: 18,
-    paddingVertical: 9,
-    marginTop: 4,
-  },
-  learnCTAText: {
     fontSize: 13,
+    fontWeight: '700',
+    color: DARK,
+    textAlign: 'center',
+    letterSpacing: -0.2,
+  },
+  startBadge: {
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  startBadgeText: {
+    fontSize: 11,
     fontWeight: '700',
     color: '#FFFAF4',
     letterSpacing: 0.2,
