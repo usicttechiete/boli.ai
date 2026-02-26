@@ -52,8 +52,8 @@ const COMING_SOON = [
 ];
 
 const MOCK_KNOWN_LANGUAGES = [
-  { id: '1', name: 'English', symbol: 'A', fluency: 'Intermediate', score: 68, orbColor: '#8B8FD4', orbLight: '#EEEEF9' },
-  { id: '2', name: 'Hindi', symbol: 'नमस्ते', fluency: 'Advanced', score: 92, orbColor: '#E8813C', orbLight: '#FFF0E4' },
+  { id: '1', name: 'Hindi', symbol: 'नमस्ते', fluency: 'Advanced', score: 92, orbColor: '#E8813C', orbLight: '#FFF0E4' },
+  { id: '2', name: 'Tamil', symbol: 'த', fluency: 'Fluent', score: 85, orbColor: '#C4855B', orbLight: '#F8EDE8' },
 ];
 
 // ── Design tokens ─────────────────────────────────────────────────────────
@@ -221,7 +221,19 @@ export default function HomeScreen() {
                 >
                   <Pressable
                     style={styles.knownCard}
-                    onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                      router.push({
+                        pathname: '/test/analysis',
+                        params: {
+                          language: lang.name,
+                          pace_wpm: '124',
+                          fluency_score: String(lang.score),
+                          dialect_inferred: 'Standard regional influence',
+                          accent_feedback: 'Consistently clear articulation with natural rhythmic patterns.',
+                        },
+                      });
+                    }}
                   >
                     {/* Orb */}
                     <SymbolOrb
@@ -266,9 +278,11 @@ export default function HomeScreen() {
           </View>
           <OrnamentDivider />
 
-          {/* Active languages - Coming soon style cards */}
+          {/* Active languages - Filtered to exclude known ones */}
           <View style={styles.learnGrid}>
-            {ACTIVE_LANGUAGES.map((lang, i) => (
+            {ACTIVE_LANGUAGES.filter(
+              lang => !knownLanguages.some(kl => kl.name.toLowerCase() === lang.name.toLowerCase())
+            ).map((lang, i) => (
               <Animated.View
                 key={lang.id}
                 entering={FadeInDown.delay(500 + i * 80).duration(500)}

@@ -157,19 +157,16 @@ export async function runLanguageTestPipeline(
 ): Promise<LanguageTestResult> {
     const { audioBuffer, language, promptText, userId } = input;
 
-    // ── STEP 1: STORAGE ──────────────────────────────────────────────────────
+    // ── STEP 1: STORAGE (non-fatal — analysis still returns if this fails) ──────
     const timestamp = Date.now();
     const ext = 'm4a';
     const storagePath = `tests/${userId}/${timestamp}.${ext}`;
+    let audio_url: string | null = null;
 
-    let audio_url: string;
     try {
         audio_url = await uploadToStorage(audioBuffer, storagePath);
     } catch (err) {
-        logger.error({ err, userId }, 'Audio storage failed');
-        const error = new Error('Audio storage failed') as NodeJS.ErrnoException;
-        error.code = 'STORAGE_FAILED';
-        throw error;
+        logger.warn({ err, userId }, 'Audio storage failed — continuing without URL');
     }
 
     // ── STEP 2: STT ──────────────────────────────────────────────────────────
@@ -182,10 +179,9 @@ export async function runLanguageTestPipeline(
         throw err;
     }
 
-    // ── STEP 3: Node Fallback WPM ─────────────────────────────────────────────
-    // Approximated length or assuming 15 seconds if unknown, 
-    // real implementation might use Python service, but we'll use node fallback logic here.
-    const durationSecs = Math.max(audioBuffer.length / 8000, 5); // Rough guess
+    // ── STEP 3: WPM estimation ────────────────────────────────────────────────
+    // Use a 15-second minimum floor since we can't reliably derive duration from a compressed buffer
+    const durationSecs = Math.max(15, audioBuffer.length / 16000);
     const analysis = nodeFallbackAnalysis(transcript, durationSecs, promptText);
     const pace_wpm = analysis.wpm;
 
@@ -197,23 +193,26 @@ export async function runLanguageTestPipeline(
         wpm: pace_wpm
     });
 
-    // ── STEP 5: PERSIST ───────────────────────────────────────────────────────
-    const { error: dbError } = await supabaseAdmin
-        .from('known_language_proficiencies')
-        .insert({
-            user_id: userId,
-            language,
-            transcript,
-            pace_wpm,
-            accent_feedback: llmFeedback.accent_feedback,
-            dialect_inferred: llmFeedback.dialect_inferred,
-            fluency_score: llmFeedback.fluency_score,
-            audio_url
-        });
+    // ── STEP 5: PERSIST (non-fatal — return results even if DB write fails) ──
+    try {
+        const { error: dbError } = await supabaseAdmin
+            .from('known_language_proficiencies')
+            .insert({
+                user_id: userId,
+                language,
+                transcript,
+                pace_wpm,
+                accent_feedback: llmFeedback.accent_feedback,
+                dialect_inferred: llmFeedback.dialect_inferred,
+                fluency_score: llmFeedback.fluency_score,
+                audio_url
+            });
 
-    if (dbError) {
-        logger.error({ dbError }, 'Failed to persist known_language_proficiencies');
-        throw new Error('Failed to save session to database');
+        if (dbError) {
+            logger.error({ dbError }, 'Failed to persist known_language_proficiencies — results still returned');
+        }
+    } catch (err) {
+        logger.error({ err }, 'DB persist threw — results still returned');
     }
 
     return {
@@ -221,9 +220,10 @@ export async function runLanguageTestPipeline(
         accent_feedback: llmFeedback.accent_feedback,
         dialect_inferred: llmFeedback.dialect_inferred,
         fluency_score: llmFeedback.fluency_score,
-        audio_url
+        audio_url: audio_url ?? '',
     };
 }
+
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

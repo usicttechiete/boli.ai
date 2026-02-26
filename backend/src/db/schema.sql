@@ -6,13 +6,34 @@
 create extension if not exists "uuid-ossp";
 
 -- ============================================================
+-- SUPPORTED LANGUAGES (Source of Truth)
+-- ============================================================
+create table if not exists public.supported_languages (
+  code text primary key, -- e.g., 'hindi', 'english'
+  name text not null,
+  native_name text,
+  is_active boolean default true,
+  created_at timestamptz default now()
+);
+
+-- Seed initial languages
+insert into public.supported_languages (code, name, native_name) values
+('hindi', 'Hindi', 'हिन्दी'),
+('english', 'English', 'English'),
+('marathi', 'Marathi', 'मराठी'),
+('tamil', 'Tamil', 'தமிழ்'),
+('telugu', 'Telugu', 'తెలుగు'),
+('bengali', 'Bengali', 'বাংলা')
+on conflict (code) do nothing;
+
+-- ============================================================
 -- USERS (extends Supabase auth.users)
 -- ============================================================
 create table if not exists public.profiles (
   id uuid references auth.users(id) on delete cascade primary key,
   name text not null,
-  native_language text not null default 'hindi',
-  target_language text not null default 'english',
+  native_language text not null default 'hindi' references public.supported_languages(code) on update cascade,
+  target_language text not null default 'english' references public.supported_languages(code) on update cascade,
   daily_goal_mins integer not null default 10,
   streak_days integer not null default 0,
   last_active_date date,
@@ -60,7 +81,7 @@ create trigger on_auth_user_created
 create table if not exists public.known_language_proficiencies (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references public.profiles(id) on delete cascade not null,
-  language text not null,
+  language text not null references public.supported_languages(code) on update cascade,
   transcript text,
   pace_wpm float,
   accent_feedback text,
@@ -75,3 +96,33 @@ alter table public.known_language_proficiencies enable row level security;
 create policy "Users can manage own proficiencies" on public.known_language_proficiencies
   for all using (auth.uid() = user_id);
 
+
+-- ============================================================
+-- LEARNING PROGRESS
+-- Stores current learning statistics for target languages
+-- ============================================================
+create table if not exists public.learning_progress (
+  id uuid default uuid_generate_v4() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  language text not null references public.supported_languages(code) on update cascade,
+  words integer default 0,
+  sentences integer default 0,
+  level integer default 0 check (level >= 0 and level <= 100),
+  last_active_at timestamptz default now(),
+  created_at timestamptz not null default now(),
+  unique(user_id, language)
+);
+
+alter table public.learning_progress enable row level security;
+
+drop policy if exists "Users can manage own learning progress" on public.learning_progress;
+create policy "Users can manage own learning progress" on public.learning_progress 
+  for all using (auth.uid() = user_id);
+
+-- ============================================================
+-- OPTIMIZATIONS
+-- ============================================================
+create index if not exists idx_profiles_native_lang on public.profiles(native_language);
+create index if not exists idx_profiles_target_lang on public.profiles(target_language);
+create index if not exists idx_proficiencies_lang on public.known_language_proficiencies(language);
+create index if not exists idx_learning_progress_lang on public.learning_progress(language);

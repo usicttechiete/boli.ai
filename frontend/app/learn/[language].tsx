@@ -228,7 +228,10 @@ export default function LearnSourceSelectionScreen() {
                         disabled={!selectedId}
                         onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            router.push('/');
+                            router.push({
+                                pathname: '/learn/proficiency',
+                                params: { language: targetLanguage },
+                            });
                         }}
                     >
                         <Text style={[styles.continueBtnText, { color: selectedId ? CREAM : MID }]}>

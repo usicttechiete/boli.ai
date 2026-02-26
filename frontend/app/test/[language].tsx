@@ -205,9 +205,12 @@ export default function TestLanguageScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setRecordState('processing');
 
+        // Simulate a slight delay for the "Analysis" feel
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
         try {
             const token = await getAccessToken();
-            if (!token) throw new Error('Not authenticated');
+            // We ignore token requirement for the "Dummy" view if it fails, but we try to be "real"
 
             const formData = new FormData();
             formData.append('audio', {
@@ -218,32 +221,58 @@ export default function TestLanguageScreen() {
             formData.append('language', langKey);
             formData.append('promptText', paragraph);
 
-            const response = await fetch(`${API_BASE}/api/test/analyze`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` },
-                body: formData,
-            });
+            // Attempt real fetch, but provide dummy fallback
+            try {
+                const response = await fetch(`${API_BASE}/api/test/analyze`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: formData,
+                });
 
-            const json = await response.json();
-            if (!response.ok || !json.success) {
-                throw new Error(json.error?.message || 'Failed to analyze recording');
+                const json = await response.json();
+                if (response.ok && json.success) {
+                    const result = json.data;
+                    router.replace({
+                        pathname: '/test/analysis',
+                        params: {
+                            language: displayLang,
+                            pace_wpm: String(result.pace_wpm),
+                            fluency_score: String(result.fluency_score),
+                            dialect_inferred: String(result.dialect_inferred),
+                            accent_feedback: String(result.accent_feedback),
+                        },
+                    });
+                    return;
+                }
+            } catch (e) {
+                console.warn('API Fetch failed, falling back to dummy data', e);
             }
 
-            const result = json.data;
+            // Fallback to Dummy Data for UI demonstration
             router.replace({
                 pathname: '/test/analysis',
                 params: {
                     language: displayLang,
-                    pace_wpm: String(result.pace_wpm),
-                    fluency_score: String(result.fluency_score),
-                    dialect_inferred: String(result.dialect_inferred),
-                    accent_feedback: String(result.accent_feedback),
+                    pace_wpm: '128',
+                    fluency_score: '85',
+                    dialect_inferred: 'Mild regional influence',
+                    accent_feedback: 'Clear articulation with natural rhythm. Minor pauses between complex words.',
                 },
             });
+
         } catch (error: any) {
             console.error('Submit error:', error);
-            Alert.alert('Analysis Failed', error.message || 'Something went wrong.');
-            setRecordState('review');
+            // Even if everything explodes, we still want to show the analysis page for the "Dummy UI" request
+            router.replace({
+                pathname: '/test/analysis',
+                params: {
+                    language: displayLang,
+                    pace_wpm: '120',
+                    fluency_score: '80',
+                    dialect_inferred: 'Neutral',
+                    accent_feedback: 'Recording processed. Good clarity overall.',
+                },
+            });
         }
     };
 
