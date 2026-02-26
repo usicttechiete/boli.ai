@@ -1,14 +1,17 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { useApi } from '@/hooks/use-api';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Dimensions,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native';
 import Animated, {
   FadeIn,
@@ -40,21 +43,84 @@ const ACTIVE_LANGUAGES = [
     orbLight: '#FFF0E4',
     description: 'भारत की राष्ट्रभाषा',
   },
+  {
+    id: '3',
+    name: 'Tamil',
+    code: 'ta',
+    symbol: 'த',
+    subSymbol: 'தமிழ்',
+    orbColor: '#C4855B',
+    orbLight: '#F8EDE8',
+    description: 'Classical language',
+  },
+  {
+    id: '4',
+    name: 'Punjabi',
+    code: 'pa',
+    symbol: 'ਸਤਿ',
+    subSymbol: 'ਪੰਜਾਬੀ',
+    orbColor: '#8BC45B',
+    orbLight: '#EFF8E8',
+    description: 'Language of Punjab',
+  },
+  {
+    id: '5',
+    name: 'Gujarati',
+    code: 'gu',
+    symbol: 'ગ',
+    subSymbol: 'ગુજરાતી',
+    orbColor: '#7B5BC4',
+    orbLight: '#EEE8F8',
+    description: 'Language of Gujarat',
+  },
+  {
+    id: '6',
+    name: 'Marathi',
+    code: 'mr',
+    symbol: 'म',
+    subSymbol: 'मराठी',
+    orbColor: '#C45BB8',
+    orbLight: '#F8E8F7',
+    description: 'Language of Maharashtra',
+  },
+  {
+    id: '7',
+    name: 'Telugu',
+    code: 'te',
+    symbol: 'తె',
+    subSymbol: 'తెలుగు',
+    orbColor: '#5BC45B',
+    orbLight: '#E8F8E8',
+    description: 'Language of Andhra & Telangana',
+  },
 ];
 
 const COMING_SOON = [
-  { id: '3', name: 'Tamil', symbol: 'த', native: 'தமிழ்' },
-  { id: '4', name: 'Telugu', symbol: 'తె', native: 'తెలుగు' },
-  { id: '5', name: 'Punjabi', symbol: 'ਪੰ', native: 'ਪੰਜਾਬੀ' },
-  { id: '6', name: 'Gujarati', symbol: 'ઊ', native: 'ગુજરાતી' },
-  { id: '7', name: 'Marathi', symbol: 'म', native: 'मराठी' },
   { id: '8', name: 'Kannada', symbol: 'ಕ', native: 'ಕನ್ನಡ' },
+  { id: '9', name: 'Bengali', symbol: 'বা', native: 'বাংলা' },
+  { id: '10', name: 'Malayalam', symbol: 'മ', native: 'മലയാളം' },
 ];
 
 const MOCK_KNOWN_LANGUAGES = [
   { id: '1', name: 'Hindi', symbol: 'नमस्ते', fluency: 'Advanced', score: 92, orbColor: '#E8813C', orbLight: '#FFF0E4' },
   { id: '2', name: 'Tamil', symbol: 'த', fluency: 'Fluent', score: 85, orbColor: '#C4855B', orbLight: '#F8EDE8' },
 ];
+
+interface KnownLanguage {
+  id: string;
+  language: string;
+  fluency_score: number;
+  created_at: string;
+}
+
+interface LearningProgress {
+  id: string;
+  language: string;
+  words: number;
+  sentences: number;
+  level: number;
+  last_active_at: string;
+}
 
 // ── Design tokens ─────────────────────────────────────────────────────────
 const SAFFRON = '#E8813C';
@@ -145,9 +211,75 @@ function SymbolOrb({
 
 export default function HomeScreen() {
   const { user } = useAuth();
+  const { apiCall } = useApi();
   const insets = useSafeAreaInsets();
-  const [knownLanguages] = useState(MOCK_KNOWN_LANGUAGES);
+  const [knownLanguages, setKnownLanguages] = useState<KnownLanguage[]>([]);
+  const [learningProgress, setLearningProgress] = useState<LearningProgress[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const firstName = user?.user_metadata?.full_name?.split(' ')[0] || 'Friend';
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      // Fetch known languages
+      const knownResult = await apiCall<KnownLanguage[]>('/api/test/known-languages', {
+        method: 'GET',
+      });
+
+      if (knownResult.success && knownResult.data) {
+        setKnownLanguages(knownResult.data);
+      }
+
+      // Fetch all learning progress
+      // For now, we'll check each active language
+      const progressPromises = ACTIVE_LANGUAGES.map(lang =>
+        apiCall<LearningProgress>(`/api/learning/progress/${lang.name.toLowerCase()}`, {
+          method: 'GET',
+        })
+      );
+
+      const progressResults = await Promise.all(progressPromises);
+      const validProgress = progressResults
+        .filter(r => r.success && r.data)
+        .map(r => r.data!);
+      
+      setLearningProgress(validProgress);
+    } catch (error) {
+      console.error('Load data error:', error);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    loadData();
+  };
+
+  const getLanguageMeta = (langName: string) => {
+    const lang = ACTIVE_LANGUAGES.find(l => l.name.toLowerCase() === langName.toLowerCase());
+    return lang || { symbol: '🌐', orbColor: PERIWINKLE, orbLight: '#EEEEF9' };
+  };
+
+  const getFluencyLabel = (score: number) => {
+    if (score >= 90) return 'Fluent';
+    if (score >= 75) return 'Advanced';
+    if (score >= 60) return 'Intermediate';
+    return 'Beginner';
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={SAFFRON} />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -157,6 +289,9 @@ export default function HomeScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={onRefresh} tintColor={SAFFRON} />
+        }
         contentContainerStyle={[
           styles.scrollContent,
           { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 32 },
@@ -213,40 +348,46 @@ export default function HomeScreen() {
             </Animated.View>
           ) : (
             <View style={styles.knownGrid}>
-              {knownLanguages.map((lang, i) => (
-                <Animated.View
-                  key={lang.id}
-                  entering={FadeInDown.delay(300 + i * 80).duration(500)}
-                  style={styles.knownCardWrap}
-                >
-                  <Pressable
-                    style={styles.knownCard}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      router.push({
-                        pathname: '/test/analysis',
-                        params: {
-                          language: lang.name,
-                          pace_wpm: '124',
-                          fluency_score: String(lang.score),
-                          dialect_inferred: 'Standard regional influence',
-                          accent_feedback: 'Consistently clear articulation with natural rhythmic patterns.',
-                        },
-                      });
-                    }}
+              {knownLanguages.map((lang, i) => {
+                const meta = getLanguageMeta(lang.language);
+                return (
+                  <Animated.View
+                    key={lang.id}
+                    entering={FadeInDown.delay(300 + i * 80).duration(500)}
+                    style={styles.knownCardWrap}
                   >
-                    {/* Orb */}
-                    <SymbolOrb
-                      symbol={lang.symbol}
-                      orbColor={lang.orbColor}
-                      orbLight={lang.orbLight}
-                      size={64}
-                    />
-                    <Text style={styles.knownLangName}>{lang.name}</Text>
-                    <Text style={styles.knownFluency}>{lang.fluency}</Text>
-                  </Pressable>
-                </Animated.View>
-              ))}
+                    <Pressable
+                      style={styles.knownCard}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        router.push({
+                          pathname: '/test/analysis',
+                          params: {
+                            language: lang.language,
+                            pace_wpm: '124',
+                            fluency_score: String(lang.fluency_score),
+                            dialect_inferred: 'Standard regional influence',
+                            accent_feedback: 'Consistently clear articulation.',
+                          },
+                        });
+                      }}
+                    >
+                      <SymbolOrb
+                        symbol={meta.symbol}
+                        orbColor={meta.orbColor}
+                        orbLight={meta.orbLight}
+                        size={64}
+                      />
+                      <Text style={styles.knownLangName}>
+                        {lang.language.charAt(0).toUpperCase() + lang.language.slice(1)}
+                      </Text>
+                      <Text style={styles.knownFluency}>
+                        {getFluencyLabel(lang.fluency_score)}
+                      </Text>
+                    </Pressable>
+                  </Animated.View>
+                );
+              })}
 
               {/* Add language card */}
               <Animated.View
@@ -281,35 +422,53 @@ export default function HomeScreen() {
           {/* Active languages - Filtered to exclude known ones */}
           <View style={styles.learnGrid}>
             {ACTIVE_LANGUAGES.filter(
-              lang => !knownLanguages.some(kl => kl.name.toLowerCase() === lang.name.toLowerCase())
-            ).map((lang, i) => (
-              <Animated.View
-                key={lang.id}
-                entering={FadeInDown.delay(500 + i * 80).duration(500)}
-                style={styles.learnCardWrap}
-              >
-                <Pressable
-                  style={styles.learnCard}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push(`/learn/${lang.name.toLowerCase()}` as any);
-                  }}
+              lang => !knownLanguages.some(kl => kl.language.toLowerCase() === lang.name.toLowerCase())
+            ).map((lang, i) => {
+              const progress = learningProgress.find(p => p.language === lang.name.toLowerCase());
+              const isContinue = !!progress;
+
+              return (
+                <Animated.View
+                  key={lang.id}
+                  entering={FadeInDown.delay(500 + i * 80).duration(500)}
+                  style={styles.learnCardWrap}
                 >
-                  {/* Symbol orb */}
-                  <SymbolOrb
-                    symbol={lang.symbol}
-                    orbColor={lang.orbColor}
-                    orbLight={lang.orbLight}
-                    size={56}
-                  />
-                  <Text style={[styles.learnNative, { color: lang.orbColor }]}>{lang.subSymbol}</Text>
-                  <Text style={styles.learnName}>{lang.name}</Text>
-                  <View style={[styles.startBadge, { backgroundColor: lang.orbColor }]}>
-                    <Text style={styles.startBadgeText}>Start</Text>
-                  </View>
-                </Pressable>
-              </Animated.View>
-            ))}
+                  <Pressable
+                    style={styles.learnCard}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      if (isContinue) {
+                        router.push({
+                          pathname: '/learn/practice',
+                          params: { language: lang.name },
+                        });
+                      } else {
+                        router.push(`/learn/${lang.name.toLowerCase()}` as any);
+                      }
+                    }}
+                  >
+                    {/* Symbol orb */}
+                    <SymbolOrb
+                      symbol={lang.symbol}
+                      orbColor={lang.orbColor}
+                      orbLight={lang.orbLight}
+                      size={56}
+                    />
+                    <Text style={[styles.learnNative, { color: lang.orbColor }]}>{lang.subSymbol}</Text>
+                    <Text style={styles.learnName}>{lang.name}</Text>
+                    {isContinue && progress && (
+                      <View style={styles.progressInfo}>
+                        <Text style={styles.progressText}>Level {progress.level}</Text>
+                        <Text style={styles.progressSubtext}>{progress.words} words</Text>
+                      </View>
+                    )}
+                    <View style={[styles.startBadge, { backgroundColor: isContinue ? '#4CAF50' : lang.orbColor }]}>
+                      <Text style={styles.startBadgeText}>{isContinue ? 'Continue' : 'Start'}</Text>
+                    </View>
+                  </Pressable>
+                </Animated.View>
+              );
+            })}
           </View>
 
           {/* Coming soon — 3-column compact row */}
@@ -579,6 +738,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFFAF4',
     letterSpacing: 0.2,
+  },
+
+  progressInfo: {
+    alignItems: 'center',
+    gap: 2,
+    marginTop: 4,
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: DARK,
+  },
+  progressSubtext: {
+    fontSize: 10,
+    color: MID,
   },
 
   // ── Coming soon ────────────────────────────────────────────────────────────

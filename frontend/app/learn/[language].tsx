@@ -1,14 +1,16 @@
+import { useApi } from '@/hooks/use-api';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Dimensions,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
-    View,
+    View
 } from 'react-native';
 import Animated, {
     FadeIn,
@@ -27,20 +29,33 @@ const CREAM = '#FFFAF4';
 const DARK = '#1C1218';
 const MID = '#6B5F72';
 
-// ── Known language data (mocked; would come from store) ───────────────────
-const MOCK_KNOWN = [
-    { id: '1', name: 'English', symbol: 'A', orbColor: PERIWINKLE, orbLight: PERIWINKLE_LIGHT, fluency: 'Intermediate' },
-    { id: '2', name: 'Hindi', symbol: 'नमस्ते', orbColor: SAFFRON, orbLight: '#FFF0E4', fluency: 'Native' },
-];
+interface KnownLanguage {
+    id: string;
+    language: string;
+    fluency_score: number;
+}
 
 // Target language → symbol mapping
-const TARGET_META: Record<string, { symbol: string; native: string; orbColor: string; orbLight: string }> = {
+const LANGUAGE_META: Record<string, { symbol: string; native: string; orbColor: string; orbLight: string }> = {
     english: { symbol: 'A', native: 'English', orbColor: PERIWINKLE, orbLight: PERIWINKLE_LIGHT },
     hindi: { symbol: 'नमस्ते', native: 'हिन्दी', orbColor: SAFFRON, orbLight: '#FFF0E4' },
+    tamil: { symbol: 'த', native: 'தமிழ்', orbColor: '#C4855B', orbLight: '#F8EDE8' },
+    punjabi: { symbol: 'ਸਤਿ', native: 'ਪੰਜਾਬੀ', orbColor: '#8BC45B', orbLight: '#EFF8E8' },
+    gujarati: { symbol: 'ગ', native: 'ગુજરાતી', orbColor: '#7B5BC4', orbLight: '#EEE8F8' },
+    telugu: { symbol: 'తె', native: 'తెలుగు', orbColor: '#5BC45B', orbLight: '#E8F8E8' },
+    marathi: { symbol: 'म', native: 'मराठी', orbColor: '#C45BB8', orbLight: '#F8E8F7' },
+    kannada: { symbol: 'ಕ', native: 'ಕನ್ನಡ', orbColor: '#C47B5B', orbLight: '#F8F0E8' },
 };
 
-function getTargetMeta(lang: string) {
-    return TARGET_META[lang.toLowerCase()] ?? { symbol: '🌐', native: lang, orbColor: PERIWINKLE, orbLight: PERIWINKLE_LIGHT };
+function getLanguageMeta(lang: string) {
+    return LANGUAGE_META[lang.toLowerCase()] ?? { symbol: '🌐', native: lang, orbColor: PERIWINKLE, orbLight: PERIWINKLE_LIGHT };
+}
+
+function getFluencyLabel(score: number) {
+    if (score >= 90) return 'Fluent';
+    if (score >= 75) return 'Advanced';
+    if (score >= 60) return 'Intermediate';
+    return 'Beginner';
 }
 
 // ── Large decorative symbol orb ────────────────────────────────────────────
@@ -72,7 +87,9 @@ function TargetOrb({ symbol, orbColor, orbLight, size = 80 }: {
 
 // ── Source language row card ────────────────────────────────────────────────
 function SourceCard({ lang, selected, onPress }: {
-    lang: typeof MOCK_KNOWN[0]; selected: boolean; onPress: () => void;
+    lang: { id: string; language: string; fluency_score: number; symbol: string; orbColor: string; orbLight: string; fluency: string };
+    selected: boolean;
+    onPress: () => void;
 }) {
     const isLong = lang.symbol.length > 2;
     return (
@@ -95,7 +112,7 @@ function SourceCard({ lang, selected, onPress }: {
             </View>
 
             <View style={scStyles.textWrap}>
-                <Text style={scStyles.name}>{lang.name}</Text>
+                <Text style={scStyles.name}>{lang.language.charAt(0).toUpperCase() + lang.language.slice(1)}</Text>
                 <Text style={scStyles.fluency}>{lang.fluency}</Text>
             </View>
 
@@ -128,14 +145,63 @@ const scStyles = StyleSheet.create({
 export default function LearnSourceSelectionScreen() {
     const { language } = useLocalSearchParams<{ language: string }>();
     const targetLanguage = language || 'English';
-    const meta = getTargetMeta(targetLanguage);
+    const meta = getLanguageMeta(targetLanguage);
 
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const [knownLanguages] = useState(MOCK_KNOWN);
+    const { apiCall } = useApi();
+    
+    const [knownLanguages, setKnownLanguages] = useState<any[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
     const [selectedId, setSelectedId] = useState<string | null>(null);
 
+    useEffect(() => {
+        loadKnownLanguages();
+    }, []);
+
+    const loadKnownLanguages = async () => {
+        try {
+            const result = await apiCall<KnownLanguage[]>('/api/test/known-languages', {
+                method: 'GET',
+            });
+
+            if (result.success && result.data) {
+                // Map to include metadata
+                const mapped = result.data.map(lang => {
+                    const langMeta = getLanguageMeta(lang.language);
+                    return {
+                        ...lang,
+                        symbol: langMeta.symbol,
+                        orbColor: langMeta.orbColor,
+                        orbLight: langMeta.orbLight,
+                        fluency: getFluencyLabel(lang.fluency_score),
+                    };
+                });
+                setKnownLanguages(mapped);
+            }
+        } catch (error) {
+            console.error('Load known languages error:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const selectedLang = knownLanguages.find(l => l.id === selectedId);
+
+    // Debug log
+    useEffect(() => {
+        if (selectedLang) {
+            console.log('Selected source language:', selectedLang.language);
+        }
+    }, [selectedLang]);
+
+    if (isLoading) {
+        return (
+            <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}>
+                <ActivityIndicator size="large" color={meta.orbColor} />
+            </View>
+        );
+    }
 
     return (
         <View style={styles.root}>
@@ -230,7 +296,10 @@ export default function LearnSourceSelectionScreen() {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                             router.push({
                                 pathname: '/learn/proficiency',
-                                params: { language: targetLanguage },
+                                params: { 
+                                    language: targetLanguage,
+                                    sourceLanguage: selectedLang?.language || 'hindi',
+                                },
                             });
                         }}
                     >

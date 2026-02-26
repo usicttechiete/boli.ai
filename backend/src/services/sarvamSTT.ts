@@ -52,7 +52,7 @@ export async function transcribeAudio(
                 contentType: filename.endsWith('.wav') ? 'audio/wav' : 'audio/mp4',
             });
             formData.append('language_code', languageCode);
-            formData.append('model', 'saarika:v2');  // Sarvam's latest model
+            formData.append('model', 'saarika:v2.5');  // Updated to v2.5
             formData.append('with_timestamps', 'false');
 
             const response = await axios.post<{ transcript: string }>(

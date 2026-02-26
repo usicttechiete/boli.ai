@@ -223,15 +223,20 @@ export default function TestLanguageScreen() {
 
             // Attempt real fetch, but provide dummy fallback
             try {
+                console.log('Submitting to API:', `${API_BASE}/api/test/analyze`);
                 const response = await fetch(`${API_BASE}/api/test/analyze`, {
                     method: 'POST',
                     headers: { Authorization: `Bearer ${token}` },
                     body: formData,
                 });
 
+                console.log('API Response status:', response.status);
                 const json = await response.json();
+                console.log('API Response:', json);
+
                 if (response.ok && json.success) {
                     const result = json.data;
+                    console.log('✅ Language test saved successfully!');
                     router.replace({
                         pathname: '/test/analysis',
                         params: {
@@ -243,9 +248,11 @@ export default function TestLanguageScreen() {
                         },
                     });
                     return;
+                } else {
+                    console.error('❌ API returned error:', json.error);
                 }
             } catch (e) {
-                console.warn('API Fetch failed, falling back to dummy data', e);
+                console.error('❌ API Fetch failed:', e);
             }
 
             // Fallback to Dummy Data for UI demonstration
