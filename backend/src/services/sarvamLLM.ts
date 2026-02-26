@@ -97,6 +97,93 @@ export async function generateFeedbackTips(
     return FALLBACK_TIPS;
 }
 
+export interface LanguageTestLLMParams {
+    language: string;
+    transcript: string;
+    promptText: string;
+    wpm: number;
+}
+
+export interface LanguageTestFeedback {
+    accent_feedback: string;
+    dialect_inferred: string;
+    fluency_score: number;
+}
+
+/**
+ * Evaluates fluency, accent, and dialect for the new Language Test page.
+ */
+export async function generateLanguageTestFeedback(
+    params: LanguageTestLLMParams
+): Promise<LanguageTestFeedback> {
+    const userPrompt = `Student speaking a sample paragraph in ${params.language}.
+- Transcript: "${params.transcript.slice(0, 500)}"
+- Target text: "${params.promptText}"
+- Speaking pace: ${params.wpm} WPM.
+
+Analyze this performance. Output a JSON payload with exact keys:
+{
+  "accent_feedback": "1 short sentence about their accent clarity",
+  "dialect_inferred": "Likely regional dialect inferred from patterns",
+  "fluency_score": "Number 0-100 indicating closeness to native fluidity"
+}`;
+
+    const maxAttempts = 2; // 1 initial + 1 retry
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            const response = await axios.post<{
+                choices: Array<{ message: { content: string } }>;
+            }>(
+                SARVAM_LLM_URL,
+                {
+                    model: 'sarvam-m',
+                    messages: [
+                        { role: 'system', content: 'You are an objective AI evaluator.' },
+                        { role: 'user', content: userPrompt },
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 200,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${SARVAM_API_KEY}`,
+                        'Content-Type': 'application/json',
+                    },
+                    timeout: 20_000,
+                }
+            );
+
+            const content = response.data?.choices?.[0]?.message?.content?.trim();
+            if (!content) throw new Error('Empty LLM response');
+
+            const match = content.match(/\{[\s\S]*\}/);
+            const jsonStr = match ? match[0] : content;
+            const parsed = JSON.parse(jsonStr);
+
+            return {
+                accent_feedback: parsed.accent_feedback || "Clear, neutral tone.",
+                dialect_inferred: parsed.dialect_inferred || "Standard Influence",
+                fluency_score: typeof parsed.fluency_score === 'number'
+                    ? parsed.fluency_score
+                    : (parseInt(parsed.fluency_score, 10) || 75)
+            };
+        } catch (err) {
+            logger.warn(
+                { attempt, err: (err as Error).message },
+                'Sarvam LLM Language Test attempt failed'
+            );
+        }
+    }
+
+    // Graceful fallback
+    return {
+        accent_feedback: "Clear, neutral tone.",
+        dialect_inferred: "Standard Influence",
+        fluency_score: 75
+    };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function buildUserPrompt(p: LLMInputParams): string {

@@ -8,6 +8,23 @@ const SARVAM_STT_URL =
     process.env.SARVAM_STT_URL || 'https://api.sarvam.ai/speech-to-text';
 const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
 
+export function getSarvamLanguageCode(lang: string): string {
+    const map: Record<string, string> = {
+        hindi: 'hi-IN',
+        bengali: 'bn-IN',
+        kannada: 'kn-IN',
+        malayalam: 'ml-IN',
+        marathi: 'mr-IN',
+        odia: 'od-IN',
+        punjabi: 'pa-IN',
+        tamil: 'ta-IN',
+        telugu: 'te-IN',
+        gujarati: 'gu-IN',
+        english: 'en-IN',
+    };
+    return map[lang.toLowerCase()] || 'en-IN';
+}
+
 /**
  * Sends an audio buffer to the Sarvam Speech-to-Text API and returns the transcript.
  *
@@ -15,12 +32,14 @@ const SARVAM_API_KEY = process.env.SARVAM_API_KEY || '';
  *
  * @param audioBuffer - Raw audio bytes
  * @param filename    - Original filename (e.g. "recording.m4a")
+ * @param languageCode - Sarvam language code string
  * @returns transcript string
  * @throws {Error} with code 'STT_FAILED' on unrecoverable failure
  */
 export async function transcribeAudio(
     audioBuffer: Buffer,
-    filename: string
+    filename: string,
+    languageCode: string = 'en-IN'
 ): Promise<string> {
     const maxAttempts = 3; // 1 initial + 2 retries
     let lastError: unknown;
@@ -32,7 +51,7 @@ export async function transcribeAudio(
                 filename,
                 contentType: filename.endsWith('.wav') ? 'audio/wav' : 'audio/mp4',
             });
-            formData.append('language_code', 'en-IN');
+            formData.append('language_code', languageCode);
             formData.append('model', 'saarika:v2');  // Sarvam's latest model
             formData.append('with_timestamps', 'false');
 

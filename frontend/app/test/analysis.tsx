@@ -114,14 +114,24 @@ export default function AnalysisScreen() {
     const language = (params.language as string) || 'English';
     const meta = getLangMeta(language);
 
-    const mockData = {
-        fluencyScore: 85,
-        fluencyText: 'Highly Fluent',
-        paceWpm: 120,
-        paceStatus: 'Perfect pace',
-        dialect: 'North Indian',
-        accentFeedback: 'Clear pronunciation, strong enunciation on consonants. Excellent natural flow with minimal pauses.',
+    const fluencyScore = parseInt((params.fluency_score as string) || '0', 10);
+    const paceWpm = parseInt((params.pace_wpm as string) || '0', 10);
+    const dialect = (params.dialect_inferred as string) || 'Undetermined Influence';
+    const accentFeedback = (params.accent_feedback as string) || 'Clear, neutral tone. Good job reading the text naturally.';
+
+    const getFluencyText = (score: number) => {
+        if (score >= 90) return 'Highly Fluent';
+        if (score >= 75) return 'Fluent';
+        if (score >= 60) return 'Intermediate';
+        return 'Needs Practice';
     };
+    const fluencyText = getFluencyText(fluencyScore);
+    const getPaceStatus = (wpm: number) => {
+        if (wpm < 100) return 'A bit slow';
+        if (wpm > 150) return 'Slightly fast';
+        return 'Perfect pace';
+    };
+    const paceStatus = getPaceStatus(paceWpm);
 
     return (
         <View style={styles.root}>
@@ -160,7 +170,7 @@ export default function AnalysisScreen() {
                 <Animated.View entering={FadeInUp.delay(300).duration(600).springify()} style={styles.fluencyCard}>
                     <View style={styles.fluencyLeft}>
                         <Text style={styles.flLabel}>OVERALL FLUENCY</Text>
-                        <Text style={[styles.flStatus, { color: meta.orbColor }]}>{mockData.fluencyText}</Text>
+                        <Text style={[styles.flStatus, { color: meta.orbColor }]}>{fluencyText}</Text>
                         <Text style={styles.flDesc}>
                             Your speaking flows naturally with great accuracy.
                         </Text>
@@ -168,18 +178,18 @@ export default function AnalysisScreen() {
                             <Text style={[styles.flBadgeText, { color: GREEN }]}>Profile saved ✓</Text>
                         </View>
                     </View>
-                    <AccuracyRing score={mockData.fluencyScore} tintColor={meta.orbColor} size={110} />
+                    <AccuracyRing score={fluencyScore} tintColor={meta.orbColor} size={110} />
                 </Animated.View>
 
                 {/* ── Metric grid ── */}
                 <Animated.View entering={FadeInUp.delay(420).duration(600)} style={styles.metricRow}>
                     <MetricCard
-                        label="Pace" value={mockData.paceWpm} unit="WPM"
-                        badge={mockData.paceStatus} badgeColor={GREEN} badgeBg={GREEN_LIGHT}
+                        label="Pace" value={paceWpm} unit="WPM"
+                        badge={paceStatus} badgeColor={GREEN} badgeBg={GREEN_LIGHT}
                         icon="💨" accentColor="#3DC47B" accentBg={GREEN_LIGHT}
                     />
                     <MetricCard
-                        label="Dialect" value={mockData.dialect}
+                        label="Dialect" value={dialect}
                         icon="🗺️" accentColor={PERIWINKLE} accentBg={PERIWINKLE_LIGHT}
                     />
                 </Animated.View>
@@ -192,7 +202,7 @@ export default function AnalysisScreen() {
                     </View>
                     <View style={styles.feedbackQuote}>
                         <Text style={styles.quoteMark}>"</Text>
-                        <Text style={styles.feedbackText}>{mockData.accentFeedback}</Text>
+                        <Text style={styles.feedbackText}>{accentFeedback}</Text>
                     </View>
                 </Animated.View>
             </ScrollView>

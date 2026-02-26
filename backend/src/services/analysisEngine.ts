@@ -8,8 +8,8 @@ import type {
     Session,
     SessionType,
 } from '../types/index';
-import { generateFeedbackTips } from './sarvamLLM';
-import { transcribeAudio } from './sarvamSTT';
+import { generateFeedbackTips, generateLanguageTestFeedback } from './sarvamLLM';
+import { getSarvamLanguageCode, transcribeAudio } from './sarvamSTT';
 
 const logger = pino({ name: 'analysisEngine' });
 
@@ -131,6 +131,97 @@ export async function runAnalysisPipeline(
         tips,
         overallScore,
         audioUrl,
+    };
+}
+
+export interface LanguageTestInput {
+    audioBuffer: Buffer;
+    language: string;
+    promptText: string;
+    userId: string;
+}
+
+export interface LanguageTestResult {
+    pace_wpm: number;
+    accent_feedback: string;
+    dialect_inferred: string;
+    fluency_score: number;
+    audio_url: string;
+}
+
+/**
+ * Pipeline for the Add Language Test (/api/test/analyze).
+ */
+export async function runLanguageTestPipeline(
+    input: LanguageTestInput
+): Promise<LanguageTestResult> {
+    const { audioBuffer, language, promptText, userId } = input;
+
+    // ── STEP 1: STORAGE ──────────────────────────────────────────────────────
+    const timestamp = Date.now();
+    const ext = 'm4a';
+    const storagePath = `tests/${userId}/${timestamp}.${ext}`;
+
+    let audio_url: string;
+    try {
+        audio_url = await uploadToStorage(audioBuffer, storagePath);
+    } catch (err) {
+        logger.error({ err, userId }, 'Audio storage failed');
+        const error = new Error('Audio storage failed') as NodeJS.ErrnoException;
+        error.code = 'STORAGE_FAILED';
+        throw error;
+    }
+
+    // ── STEP 2: STT ──────────────────────────────────────────────────────────
+    let transcript: string;
+    const sarvamLangCode = getSarvamLanguageCode(language);
+    try {
+        transcript = await transcribeAudio(audioBuffer, `${timestamp}.${ext}`, sarvamLangCode);
+    } catch (err) {
+        logger.error({ err, userId }, 'STT failed');
+        throw err;
+    }
+
+    // ── STEP 3: Node Fallback WPM ─────────────────────────────────────────────
+    // Approximated length or assuming 15 seconds if unknown, 
+    // real implementation might use Python service, but we'll use node fallback logic here.
+    const durationSecs = Math.max(audioBuffer.length / 8000, 5); // Rough guess
+    const analysis = nodeFallbackAnalysis(transcript, durationSecs, promptText);
+    const pace_wpm = analysis.wpm;
+
+    // ── STEP 4: LLM FEEDBACK ─────────────────────────────────────────────────
+    const llmFeedback = await generateLanguageTestFeedback({
+        language,
+        transcript,
+        promptText,
+        wpm: pace_wpm
+    });
+
+    // ── STEP 5: PERSIST ───────────────────────────────────────────────────────
+    const { error: dbError } = await supabaseAdmin
+        .from('known_language_proficiencies')
+        .insert({
+            user_id: userId,
+            language,
+            transcript,
+            pace_wpm,
+            accent_feedback: llmFeedback.accent_feedback,
+            dialect_inferred: llmFeedback.dialect_inferred,
+            fluency_score: llmFeedback.fluency_score,
+            audio_url
+        });
+
+    if (dbError) {
+        logger.error({ dbError }, 'Failed to persist known_language_proficiencies');
+        throw new Error('Failed to save session to database');
+    }
+
+    return {
+        pace_wpm,
+        accent_feedback: llmFeedback.accent_feedback,
+        dialect_inferred: llmFeedback.dialect_inferred,
+        fluency_score: llmFeedback.fluency_score,
+        audio_url
     };
 }
 

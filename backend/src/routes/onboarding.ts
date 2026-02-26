@@ -3,7 +3,7 @@ import pino from 'pino';
 import { supabaseAdmin } from '../db/supabase';
 import { authenticate } from '../middleware/auth';
 import { cacheDel } from '../services/cache';
-import { transcribeAudio } from '../services/sarvamSTT';
+import { getSarvamLanguageCode, transcribeAudio } from '../services/sarvamSTT';
 
 const logger = pino({ name: 'onboardingRoute' });
 
@@ -86,7 +86,7 @@ export async function onboardingRoutes(fastify: FastifyInstance): Promise<void> 
                 for (const key of available) {
                     const { buffer, filename } = audioBuffers.get(key)!;
                     try {
-                        const transcript = await transcribeAudio(buffer, filename);
+                        const transcript = await transcribeAudio(buffer, filename, getSarvamLanguageCode(nativeLanguage));
                         const estimatedDurationSecs = estimateDuration(buffer);
                         const wpm = calculateWpm(transcript, estimatedDurationSecs);
                         transcriptions.push({ transcript, wpm });

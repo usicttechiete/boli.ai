@@ -7,6 +7,7 @@ import Fastify from 'fastify';
 import { authRoutes } from './routes/auth';
 import { drillsRoutes } from './routes/drills';
 import { interviewRoutes } from './routes/interview';
+import { languageTestRoutes } from './routes/languageTest';
 import { onboardingRoutes } from './routes/onboarding';
 import { profileRoutes } from './routes/profile';
 import { sessionsRoutes } from './routes/sessions';
@@ -66,6 +67,7 @@ async function bootstrap(): Promise<void> {
     await fastify.register(interviewRoutes);
     await fastify.register(drillsRoutes);
     await fastify.register(profileRoutes);
+    await fastify.register(languageTestRoutes);
 
     // ── Health check ─────────────────────────────────────────────────────────────
     fastify.get('/health', async () => ({

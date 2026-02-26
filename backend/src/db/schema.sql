@@ -54,95 +54,24 @@ create trigger on_auth_user_created
 
 
 -- ============================================================
--- DIALECT PROFILES
+-- KNOWN LANGUAGE PROFICIENCIES
+-- Stores the baseline test results for languages the user knows
 -- ============================================================
-create table if not exists public.dialect_profiles (
+create table if not exists public.known_language_proficiencies (
   id uuid default uuid_generate_v4() primary key,
   user_id uuid references public.profiles(id) on delete cascade not null,
-  detected_region text,                        -- 'hindi_belt' | 'south_india' | 'bengal' | etc
-  weak_phonemes jsonb default '[]'::jsonb,     -- [{phoneme: string, severity: 'low'|'med'|'high'}]
-  filler_patterns jsonb default '{}'::jsonb,   -- {word: count} e.g. {"basically": 12, "um": 8}
-  avg_wpm_baseline float,                      -- from onboarding sessions
-  onboarding_session_ids uuid[] default '{}',  -- links to sessions table
-  updated_at timestamptz not null default now()
-);
-
-alter table public.dialect_profiles enable row level security;
-
-create policy "Users can manage own dialect profile" on public.dialect_profiles
-  for all using (auth.uid() = user_id);
-
-
--- ============================================================
--- SESSIONS (single recording + analysis result)
--- ============================================================
-create type if not exists session_type as enum ('practice', 'drill', 'shadow', 'onboarding');
-
-create table if not exists public.sessions (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references public.profiles(id) on delete cascade not null,
-  type session_type not null default 'practice',
-  prompt_text text,                            -- what user was asked to say (drill/shadow)
-  transcript text,                             -- Sarvam STT output
-  wpm float,
-  accuracy_score float,                        -- 0–100, null for free practice
-  filler_count integer not null default 0,
-  filler_words_found text[] default '{}',
-  llm_tips text[] default '{}',
-  audio_url text,                              -- Supabase Storage signed URL
-  duration_secs float,
-  overall_score float,                         -- weighted avg
+  language text not null,
+  transcript text,
+  pace_wpm float,
+  accent_feedback text,
+  dialect_inferred text,
+  fluency_score float,
+  audio_url text,
   created_at timestamptz not null default now()
 );
 
-alter table public.sessions enable row level security;
+alter table public.known_language_proficiencies enable row level security;
 
-create policy "Users can manage own sessions" on public.sessions
+create policy "Users can manage own proficiencies" on public.known_language_proficiencies
   for all using (auth.uid() = user_id);
 
--- Index for fast history queries
-create index if not exists sessions_user_created on public.sessions (user_id, created_at desc);
-create index if not exists sessions_user_type on public.sessions (user_id, type);
-
-
--- ============================================================
--- INTERVIEW SESSIONS
--- ============================================================
-create table if not exists public.interview_sessions (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references public.profiles(id) on delete cascade not null,
-  category text not null default 'hr',         -- 'hr' | 'technical' | 'situational'
-  questions jsonb not null default '[]'::jsonb,
-  answers jsonb not null default '[]'::jsonb,
-  current_question_index integer not null default 0,
-  overall_score float,
-  completed boolean not null default false,
-  created_at timestamptz not null default now()
-);
-
-alter table public.interview_sessions enable row level security;
-
-create policy "Users can manage own interview sessions" on public.interview_sessions
-  for all using (auth.uid() = user_id);
-
-create index if not exists interview_sessions_user on public.interview_sessions (user_id, created_at desc);
-
-
--- ============================================================
--- DRILL SESSIONS
--- ============================================================
-create table if not exists public.drill_sessions (
-  id uuid default uuid_generate_v4() primary key,
-  user_id uuid references public.profiles(id) on delete cascade not null,
-  target_phonemes text[] default '{}',
-  sentences text[] not null,
-  session_ids uuid[] default '{}',
-  scores float[] default '{}',
-  avg_score float,
-  created_at timestamptz not null default now()
-);
-
-alter table public.drill_sessions enable row level security;
-
-create policy "Users can manage own drill sessions" on public.drill_sessions
-  for all using (auth.uid() = user_id);

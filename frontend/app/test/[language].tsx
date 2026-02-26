@@ -1,9 +1,14 @@
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';
+import { useAuth } from '@/contexts/AuthContext';
 import { Ionicons } from '@expo/vector-icons';
+import { createAudioPlayer, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { router, useLocalSearchParams } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, ScrollView, StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 type RecordingState = 'idle' | 'recording' | 'review' | 'processing';
 
@@ -33,12 +38,19 @@ export default function TestLanguageScreen() {
 
     const [recordState, setRecordState] = useState<RecordingState>('idle');
     const [timer, setTimer] = useState(0);
+    const [recordingUri, setRecordingUri] = useState<string | null>(null);
+    const { getAccessToken } = useAuth();
+
+    // expo-audio recorder hook (auto-lifecycle managed)
+    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+    const playerRef = useRef<ReturnType<typeof createAudioPlayer> | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
 
     const colorScheme = useColorScheme();
     const isDark = colorScheme === 'dark';
     const theme = Colors[isDark ? 'dark' : 'light'];
 
-    // Mock timer functionality just for UI demonstration
+    // Timer effect
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (recordState === 'recording') {
@@ -51,25 +63,143 @@ export default function TestLanguageScreen() {
         return () => clearInterval(interval);
     }, [recordState]);
 
+    // Cleanup on unmount is handled automatically by useAudioRecorder
+
     const formatTime = (seconds: number) => {
         const mins = Math.floor(seconds / 60);
         const secs = seconds % 60;
         return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const startRecording = async () => {
+        try {
+            const { granted } = await requestRecordingPermissionsAsync();
+            if (!granted) {
+                Alert.alert('Permission Denied', 'Microphone access is required to record.');
+                return;
+            }
+            await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+            await recorder.prepareToRecordAsync();
+            recorder.record();
+            setRecordState('recording');
+        } catch (err) {
+            console.error('Failed to start recording', err);
+            Alert.alert('Microphone Error', 'Failed to access microphone.');
+        }
+    };
+
+    const stopRecording = async () => {
+        try {
+            setRecordState('review');
+            await recorder.stop();
+            setRecordingUri(recorder.uri);
+            await setAudioModeAsync({ allowsRecording: false });
+        } catch (err) {
+            console.error('Failed to stop recording', err);
+        }
+    };
+
     const handleMicPress = () => {
-        if (recordState === 'idle') setRecordState('recording');
-        else if (recordState === 'recording') setRecordState('review');
+        if (recordState === 'idle') {
+            startRecording();
+        } else if (recordState === 'recording') {
+            stopRecording();
+        }
     };
 
     const handleRerecord = () => {
+        // Stop any playing audio
+        if (playerRef.current) {
+            playerRef.current.pause();
+            playerRef.current.release();
+            playerRef.current = null;
+        }
+        setIsPlaying(false);
+        setRecordingUri(null);
         setRecordState('idle');
     };
 
-    const handleSubmit = () => {
+    const handlePlayback = async () => {
+        if (!recordingUri) return;
+        try {
+            if (isPlaying && playerRef.current) {
+                playerRef.current.pause();
+                setIsPlaying(false);
+            } else {
+                // Create a fresh player each time (or reuse)
+                if (!playerRef.current) {
+                    playerRef.current = createAudioPlayer({ uri: recordingUri });
+                    // When playback finishes, reset state
+                    playerRef.current.addListener('playbackStatusUpdate', (status: any) => {
+                        if (status.didJustFinish) {
+                            setIsPlaying(false);
+                        }
+                    });
+                }
+                await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
+                playerRef.current.play();
+                setIsPlaying(true);
+            }
+        } catch (err) {
+            console.error('Playback error', err);
+        }
+    };
+
+    const handleSubmit = async () => {
+        if (!recordingUri) return;
         setRecordState('processing');
-        // Mock processing delay, then navigate
-        setTimeout(() => router.push({ pathname: '/test/analysis' as any, params: { language } }), 3000);
+
+        try {
+            const token = await getAccessToken();
+            if (!token) throw new Error('Not authenticated');
+
+            const formData = new FormData();
+
+            // Append the audio file
+            // Note: React Native FormData requires { uri, name, type } for files
+            formData.append('audio', {
+                uri: recordingUri,
+                name: `recording.m4a`, // iOS defaults to m4a for high quality
+                type: 'audio/mp4',
+            } as any);
+
+            // Append fields required by backend
+            formData.append('language', langKey);
+            formData.append('promptText', paragraph);
+
+            const response = await fetch(`${API_BASE}/api/test/analyze`, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    // Note: Ensure Content-Type is NOT manually set so boundary gets injected automatically
+                },
+                body: formData,
+            });
+
+            const json = await response.json();
+
+            if (!response.ok || !json.success) {
+                throw new Error(json.error?.message || 'Failed to analyze recording');
+            }
+
+            // Route to analysis passing the real data
+            const result = json.data;
+            router.replace({
+                pathname: '/test/analysis',
+                params: {
+                    language: displayLang,
+                    pace_wpm: String(result.pace_wpm),
+                    fluency_score: String(result.fluency_score),
+                    dialect_inferred: String(result.dialect_inferred),
+                    accent_feedback: String(result.accent_feedback)
+                }
+            });
+
+        } catch (error: any) {
+            console.error('Submit error:', error);
+            Alert.alert('Analysis Failed', error.message || 'Something went wrong.');
+            setRecordState('review');
+        }
     };
 
     return (
@@ -149,6 +279,34 @@ export default function TestLanguageScreen() {
                 {recordState === 'review' && (
                     <View style={styles.reviewContainer}>
                         <ThemedText style={styles.helperText}>Recording complete ({formatTime(timer)})</ThemedText>
+
+                        {/* Playback Bar */}
+                        <TouchableOpacity
+                            style={[styles.playbackBar, { backgroundColor: isDark ? '#2d3748' : '#f1f5f9', borderColor: isPlaying ? theme.tint : (isDark ? '#4a5568' : '#e2e8f0') }]}
+                            onPress={handlePlayback}
+                            activeOpacity={0.8}
+                        >
+                            <View style={[styles.playbackIconBox, { backgroundColor: isPlaying ? theme.tint : (isDark ? '#4a5568' : '#cbd5e0') }]}>
+                                <Ionicons name={isPlaying ? 'pause' : 'play'} size={18} color="#fff" />
+                            </View>
+                            {/* Waveform bars */}
+                            <View style={styles.waveformRow}>
+                                {[4, 10, 7, 14, 9, 5, 13, 8, 11, 6, 14, 10, 5, 8, 12].map((h, i) => (
+                                    <View
+                                        key={i}
+                                        style={[styles.waveBar, {
+                                            height: h * 1.6,
+                                            backgroundColor: isPlaying ? theme.tint : (isDark ? '#4a5568' : '#a0aec0'),
+                                            opacity: isPlaying ? 0.7 + (i % 3) * 0.1 : 0.5,
+                                        }]}
+                                    />
+                                ))}
+                            </View>
+                            <ThemedText style={[styles.playbackLabel, { color: isPlaying ? theme.tint : (isDark ? '#a0aec0' : '#64748b') }]}>
+                                {isPlaying ? 'Playing...' : 'Listen'}
+                            </ThemedText>
+                        </TouchableOpacity>
+
                         <View style={styles.reviewActions}>
                             <TouchableOpacity
                                 style={[styles.iconButton, { backgroundColor: isDark ? '#2d3748' : '#f1f5f9' }]}
@@ -336,6 +494,37 @@ const styles = StyleSheet.create({
     },
     reviewContainer: {
         width: '100%',
+    },
+    playbackBar: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 16,
+        borderWidth: 1.5,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        marginBottom: 14,
+        gap: 12,
+    },
+    playbackIconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    waveformRow: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+    },
+    waveBar: {
+        width: 3,
+        borderRadius: 2,
+    },
+    playbackLabel: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     reviewActions: {
         flexDirection: 'row',
