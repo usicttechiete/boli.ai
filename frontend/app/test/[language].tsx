@@ -40,7 +40,7 @@ export default function TestLanguageScreen() {
 
     // Mock timer functionality just for UI demonstration
     useEffect(() => {
-        let interval: NodeJS.Timeout;
+        let interval: ReturnType<typeof setInterval>;
         if (recordState === 'recording') {
             interval = setInterval(() => {
                 setTimer((prev) => prev + 1);
