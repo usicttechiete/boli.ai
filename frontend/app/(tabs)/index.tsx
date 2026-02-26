@@ -48,7 +48,7 @@ export default function HomeScreen() {
       </View>
       <ThemedText style={styles.emptyStateTitle}>No baseline yet</ThemedText>
       <ThemedText style={styles.emptyStateDesc}>
-        You haven't added any languages yet. Test a language to establish your baseline!
+        You haven&apos;t added any languages yet. Test a language to establish your baseline!
       </ThemedText>
     </View>
   );
@@ -123,7 +123,7 @@ export default function HomeScreen() {
                     backgroundColor: isDark ? '#1a202c' : '#f8fafc'
                   }
                 ]}
-                onPress={() => router.push('/test/english' as any)}
+                onPress={() => router.push('/test' as any)}
               >
                 <View style={[styles.addIconCircle, { backgroundColor: theme.tint + '15' }]}>
                   <Ionicons name="add" size={24} color={theme.tint} />
